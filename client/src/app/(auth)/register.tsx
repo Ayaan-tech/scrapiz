@@ -952,7 +952,7 @@ export default function RegisterScreen() {
                         <View style={styles.promoSuccessContainer}>
                           <Check size={16} color="#22c55e" />
                           <Text style={styles.promoSuccessText}>
-                            You'll get ₹5 bonus on your first order!
+                            You'll get ₹10 bonus instantly on sign-up!
                           </Text>
                         </View>
                       )}

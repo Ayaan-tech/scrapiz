@@ -278,11 +278,11 @@ export default function SearchBar() {
                     setTimeout(() => setIsNavigating(false), 1000);
                   }}
                 >
-                  <View style={[styles.serviceIconContainer, { backgroundColor: isDark ? colors.primary + '20' : colors.primaryLight + '30' }]}>
-                    <service.icon size={22} color={isDark ? colors.primary : service.color} strokeWidth={2.5} />
+                  <View style={[styles.serviceIconContainer, { backgroundColor: isDark ? colors.primary + '20' : colors.primaryLight + '30', overflow: 'hidden' }]}>
+                    <Image source={service.image} style={{ width: 34, height: 34, borderRadius: 6 }} resizeMode="cover" />
                   </View>
                   <View style={styles.serviceInfo}>
-                    <Text style={[styles.serviceTitle, { color: isDark ? '#f1f5f9' : colors.text }]}>{t(service.titleKey)}</Text>
+                    <Text style={[styles.serviceTitle, { color: isDark ? '#f1f5f9' : colors.text }]}>{service.title}</Text>
                     <Text style={[styles.serviceDescription, { color: isDark ? '#cbd5e1' : colors.textSecondary }]}>{t(service.descKey)}</Text>
                   </View>
                   <ChevronRight size={18} color={isDark ? colors.textSecondary : colors.textTertiary} strokeWidth={2} />
@@ -376,11 +376,11 @@ export default function SearchBar() {
                         setTimeout(() => setIsNavigating(false), 1000);
                       }}
                     >
-                      <View style={[styles.serviceIconContainer, { backgroundColor: isDark ? colors.primary + '20' : colors.primaryLight + '30' }]}>
-                        <service.icon size={22} color={isDark ? colors.primary : service.color} strokeWidth={2.5} />
+                      <View style={[styles.serviceIconContainer, { backgroundColor: isDark ? colors.primary + '20' : colors.primaryLight + '30', overflow: 'hidden' }]}>
+                        <Image source={service.image} style={{ width: 34, height: 34, borderRadius: 6 }} resizeMode="cover" />
                       </View>
                       <View style={styles.serviceInfo}>
-                        <Text style={[styles.serviceTitle, { color: isDark ? '#f1f5f9' : colors.text }]}>{t(service.titleKey)}</Text>
+                        <Text style={[styles.serviceTitle, { color: isDark ? '#f1f5f9' : colors.text }]}>{service.title}</Text>
                         <Text style={[styles.serviceDescription, { color: isDark ? '#cbd5e1' : colors.textSecondary }]}>{t(service.descKey)}</Text>
                       </View>
                       <ChevronRight size={18} color={isDark ? colors.textSecondary : colors.textTertiary} strokeWidth={2} />

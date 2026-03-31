@@ -1,284 +1,286 @@
 import React, { useRef, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, StatusBar } from 'react-native';
-import { Hammer, Wrench, Building, Trash2, ChevronRight, FileText } from 'lucide-react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  Platform,
+  StatusBar,
+  Dimensions,
+  ImageSourcePropType,
+  TouchableOpacity,
+} from 'react-native';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
-import { wp, hp, fs, spacing, responsiveValue } from '../../utils/responsive';
+import { Ionicons } from '@expo/vector-icons';
+import { wp, hp, fs, spacing } from '../../utils/responsive';
 import { useTheme } from '../../context/ThemeContext';
 import { useLocalization } from '../../context/LocalizationContext';
 import TutorialOverlay from '@/src/components/TutorialOverlay';
-import { servicesTutorialConfig } from '@/src/config/tutorials/servicesTutorial';
 import { useTutorialStore } from '@/src/store/tutorialStore';
+import ServiceCard from '@/src/components/ServiceCard';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { getServiceBookingRoute } from '../services/serviceRoutingConfig';
 
-export const services = [
-  { id: 'demolition', titleKey: 'services.demolitionTitle', descKey: 'services.demolitionDesc', icon: Hammer, color: '#16a34a', bgColor: '#f0fdf4' },
-  { id: 'dismantling', titleKey: 'services.dismantlingTitle', descKey: 'services.dismantlingDesc', icon: Wrench, color: '#16a34a', bgColor: '#f0fdf4' },
-  { id: 'paper-shredding', titleKey: 'services.paperShreddingTitle', descKey: 'services.paperShreddingDesc', icon: FileText, color: '#16a34a', bgColor: '#f0fdf4' },
-  { id: 'society-tieup', titleKey: 'services.societyTieupTitle', descKey: 'services.societyTieupDesc', icon: Building, color: '#16a34a', bgColor: '#f0fdf4' },
-  { id: 'junk-removal', titleKey: 'services.junkRemovalTitle', descKey: 'services.junkRemovalDesc', icon: Trash2, color: '#16a34a', bgColor: '#f0fdf4' },
+const { width } = Dimensions.get('window');
+
+// ─────────────── SERVICE DATA ───────────────
+export interface ServiceData {
+  id: string;
+  title: string;
+  titleKey: string;
+  descKey: string;
+  image: ImageSourcePropType;
+  borderColor: string;
+  cardBgColor: string;
+  gradientColors: [string, string, string];
+  included: string[];
+  color: string;
+  bgColor: string;
+  icon: any;
+}
+
+const DummyIcon = () => null;
+
+export const services: ServiceData[] = [
+  {
+    id: 'demolition',
+    title: 'Demolition Service',
+    titleKey: 'services.demolitionTitle',
+    descKey: 'services.demolitionDesc',
+    image: require('../../../assets/images/services/deomlition_app.webp'),
+    borderColor: '#1a7c3a',
+    cardBgColor: '#ffffff',
+    gradientColors: ['transparent', 'rgba(247,253,249,0.6)', '#f7fdf9'],
+    included: [
+      'On-site assessment and quote.',
+      'Eco-friendly disposal.',
+      'Clean-up after completion.',
+    ],
+    color: '#1a7c3a',
+    bgColor: '#f0fdf4',
+    icon: DummyIcon,
+  },
+  {
+    id: 'dismantling',
+    title: 'Vehicle Scrapping',
+    titleKey: 'services.dismantlingTitle',
+    descKey: 'services.dismantlingDesc',
+    image: require('../../../assets/images/services/carScrap_app.webp'),
+    borderColor: '#c0392b',
+    cardBgColor: '#ffffff',
+    gradientColors: ['transparent', 'rgba(254,247,247,0.6)', '#fef7f7'],
+    included: [
+      'Pre-dismantling safety inspection.',
+      'Segregation of materials for recycling.',
+      'Site clearance and certification.',
+    ],
+    color: '#c0392b',
+    bgColor: '#fef2f2',
+    icon: DummyIcon,
+  },
+  {
+    id: 'paper-shredding',
+    title: 'Corporate Tieup',
+    titleKey: 'services.paperShreddingTitle',
+    descKey: 'services.paperShreddingDesc',
+    image: require('../../../assets/images/services/corporateTieup.webp'),
+    borderColor: '#1558a8',
+    cardBgColor: '#ffffff',
+    gradientColors: ['transparent', 'rgba(245,249,254,0.6)', '#f5f9fe'],
+    included: [
+      'Office, factory and industry waste collection plans.',
+      'Compliance-ready pickups with reporting support.',
+      'Scheduled tie-up programs for multi-location teams.',
+    ],
+    color: '#1558a8',
+    bgColor: '#eff6ff',
+    icon: DummyIcon,
+  },
+  {
+    id: 'society-tieup',
+    title: 'Society Tie-up',
+    titleKey: 'services.societyTieupTitle',
+    descKey: 'services.societyTieupDesc',
+    image: require('../../../assets/images/services/society_Tieup_app.webp'),
+    borderColor: '#1558a8',
+    cardBgColor: '#ffffff',
+    gradientColors: ['transparent', 'rgba(245,249,254,0.6)', '#f5f9fe'],
+    included: [
+      'Regular collection drives (weekly/bi-weekly).',
+      'Monthly reports on environmental impact.',
+      'Awareness programs for residents on segregation.',
+    ],
+    color: '#1558a8',
+    bgColor: '#eff6ff',
+    icon: DummyIcon,
+  },
+  {
+    id: 'junk-removal',
+    title: 'Debris Removal',
+    titleKey: 'services.junkRemovalTitle',
+    descKey: 'services.junkRemovalDesc',
+    image: require('../../../assets/images/services/debris_removal.webp'),
+    borderColor: '#c0440a',
+    cardBgColor: '#ffffff',
+    gradientColors: ['transparent', 'rgba(254,248,243,0.6)', '#fef8f3'],
+    included: [
+      'Responsible disposal, donation, or recycling.',
+      'All labor for lifting and loading included.',
+      'Same-day or next-day service available.',
+    ],
+    color: '#c0440a',
+    bgColor: '#fff7ed',
+    icon: DummyIcon,
+  },
 ];
 
+// ─────────────── MAIN SCREEN ───────────────
 export default function ServicesScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { colors, isDark } = useTheme();
   const { t } = useLocalization();
 
-  // Tutorial system integration
   const { setStepTarget, currentScreen } = useTutorialStore();
-  const overviewRef = useRef<View>(null);
+  const overviewRef    = useRef<View>(null);
   const serviceCardsRef = useRef<View>(null);
-  const detailsRef = useRef<View>(null);
-  const bookingRef = useRef<View>(null);
+  const detailsRef     = useRef<View>(null);
+  const bookingRef     = useRef<View>(null);
 
-  // Measure element positions when tutorial is active
   useEffect(() => {
     if (currentScreen === 'services') {
-      // Small delay to ensure elements are rendered
-      const measureTimeout = setTimeout(() => {
-        // Measure services overview (header section)
-        overviewRef.current?.measure((x, y, width, height, pageX, pageY) => {
-          if (width > 0 && height > 0) {
-            setStepTarget('services-overview', { x: pageX, y: pageY, width, height });
-          }
+      const timer = setTimeout(() => {
+        overviewRef.current?.measure((x, y, w, h, pageX, pageY) => {
+          if (w > 0 && h > 0) setStepTarget('services-overview', { x: pageX, y: pageY, width: w, height: h });
         });
-
-        // Measure service cards (first service card as representative)
-        serviceCardsRef.current?.measure((x, y, width, height, pageX, pageY) => {
-          if (width > 0 && height > 0) {
-            setStepTarget('services-cards', { x: pageX, y: pageY, width, height });
-          }
+        serviceCardsRef.current?.measure((x, y, w, h, pageX, pageY) => {
+          if (w > 0 && h > 0) setStepTarget('services-cards', { x: pageX, y: pageY, width: w, height: h });
         });
-
-        // Measure details section (info card)
-        detailsRef.current?.measure((x, y, width, height, pageX, pageY) => {
-          if (width > 0 && height > 0) {
-            setStepTarget('services-details', { x: pageX, y: pageY, width, height });
-          }
+        detailsRef.current?.measure((x, y, w, h, pageX, pageY) => {
+          if (w > 0 && h > 0) setStepTarget('services-details', { x: pageX, y: pageY, width: w, height: h });
         });
-
-        // Measure booking (first service card touchable as representative)
-        bookingRef.current?.measure((x, y, width, height, pageX, pageY) => {
-          if (width > 0 && height > 0) {
-            setStepTarget('services-booking', { x: pageX, y: pageY, width, height });
-          }
+        bookingRef.current?.measure((x, y, w, h, pageX, pageY) => {
+          if (w > 0 && h > 0) setStepTarget('services-booking', { x: pageX, y: pageY, width: w, height: h });
         });
       }, 100);
-
-      return () => clearTimeout(measureTimeout);
+      return () => clearTimeout(timer);
     }
   }, [currentScreen, setStepTarget]);
 
-  const handleServiceSelect = (service: typeof services[0]) => {
+  const handleLearnMore = (service: ServiceData) => {
     router.push(`/services/${service.id}`);
   };
 
+  const handleBookNow = (service: ServiceData) => {
+    router.push({
+      pathname: getServiceBookingRoute(service.id),
+      params: { service: service.id },
+    } as any);
+  };
+
+  // Header gradient — simple green like the screenshot
+  const headerGradient: [string, string, string] = isDark
+    ? ['#081a12', '#0d3020', '#164a2e']
+    : ['#2d7a4a', '#3d9960', '#6dbb88'];
+
+  const pageBg = isDark ? '#0f172a' : '#eef1f0';
+
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <StatusBar 
-              barStyle={isDark ? "light-content" : "dark-content"}
-              backgroundColor="transparent"
-              translucent
-            />
-      <LinearGradient 
-        colors={colors.headerGradient} 
-        style={styles.headerSection}
+    <View style={[styles.container, { backgroundColor: pageBg }]}>
+      <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
+
+      {/* ─── HEADER ─── */}
+      <LinearGradient
+        colors={headerGradient}
+        style={[styles.headerSection, { paddingTop: insets.top + spacing(14) }]}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
       >
-        <View ref={overviewRef}>
-          <Text style={styles.headerTitle}>{t('services.title')}</Text>
-          <Text style={styles.headerSubtitle}>{t('services.subtitle')}</Text>
+        <View ref={overviewRef} style={styles.headerInner}>
+          <TouchableOpacity
+            style={styles.backBtn}
+            onPress={() => router.back()}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="chevron-back" size={fs(24)} color="#fff" />
+          </TouchableOpacity>
+
+          <Text style={styles.headerTitle}>Our Services</Text>
+
+          {/* Spacer to keep title centered */}
+          <View style={{ width: 38 }} />
         </View>
       </LinearGradient>
 
-      <ScrollView 
-        style={styles.content} 
+      {/* ─── CARD LIST ─── */}
+      <ScrollView
+        style={styles.scrollContainer}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
       >
-        <View style={styles.servicesList} ref={serviceCardsRef}>
+        <View ref={serviceCardsRef}>
           {services.map((service, index) => (
-            <LinearGradient
+            <View
               key={service.id}
-              colors={['#16a34a', '#15803d', '#166534']}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.serviceCard}
+              ref={index === 0 ? bookingRef : index === 1 ? detailsRef : null}
             >
-              <TouchableOpacity 
-                ref={index === 0 ? bookingRef : null}
-                style={styles.serviceCardTouchable}
-                onPress={() => handleServiceSelect(service)}
-                activeOpacity={0.8}
-              >
-                <View style={[styles.serviceIcon, { backgroundColor: 'white' }]}>
-                  <service.icon size={fs(24)} color={service.color} strokeWidth={2.5} />
-                </View>
-                <View style={styles.serviceTextContainer}>
-                  <Text style={styles.serviceTitle}>{t(service.titleKey)}</Text>
-                  <Text style={styles.serviceDescription}>{t(service.descKey)}</Text>
-                </View>
-                <ChevronRight size={fs(22)} color="rgba(255, 255, 255, 0.9)" strokeWidth={2.5} />
-              </TouchableOpacity>
-            </LinearGradient>
+              <ServiceCard
+                title={service.title}
+                accentColor={service.color}
+                image={service.image}
+                included={service.included}
+                onLearnMore={() => handleLearnMore(service)}
+                onBookNow={() => handleBookNow(service)}
+              />
+            </View>
           ))}
         </View>
-
-        <View ref={detailsRef} style={[styles.infoCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <Text style={[styles.infoTitle, { color: colors.text }]}>{t('services.whyChooseUs')}</Text>
-          <View style={styles.infoList}>
-            <Text style={[styles.infoItem, { color: colors.textSecondary }]}>{t('services.benefit1')}</Text>
-            <Text style={[styles.infoItem, { color: colors.textSecondary }]}>{t('services.benefit2')}</Text>
-            <Text style={[styles.infoItem, { color: colors.textSecondary }]}>{t('services.benefit3')}</Text>
-            <Text style={[styles.infoItem, { color: colors.textSecondary }]}>{t('services.benefit4')}</Text>
-            <Text style={[styles.infoItem, { color: colors.textSecondary }]}>{t('services.benefit5')}</Text>
-          </View>
-        </View>
       </ScrollView>
-      
+
       <TutorialOverlay />
     </View>
   );
 }
 
+// ─────────────── STYLES ───────────────
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f1f5f9',
   },
-  header: { 
-    paddingTop: Platform.select({ ios: hp(6.5), android: hp(5.5) }), // Reduced from 7.4/6.2
-    paddingHorizontal: spacing(20), // Reduced from 24
-    paddingBottom: spacing(20), // Reduced from 24
-    borderBottomLeftRadius: spacing(24),
-    borderBottomRightRadius: spacing(24),
+
+  // ── Header ──
+  headerSection: {
+    paddingHorizontal: wp(5),
+    paddingBottom: hp(2.5),
   },
-  headerTitle: { 
-    fontSize: fs(22), // Reduced from 24
-    fontWeight: 'bold',
-    color: 'white', 
-    fontFamily: 'Inter-Bold', 
-    textAlign: 'center', 
-    marginBottom: spacing(4) 
-  },
-  headerSubtitle: { 
-    fontSize: fs(14), // Reduced from 15
-    color: '#a7f3d0', 
-    fontFamily: 'Inter-Regular', 
-    textAlign: 'center' 
-  },
-  content: { 
-    flex: 1, 
-    padding: spacing(14) // Reduced from 16
-  },
-  scrollContent: {
-    paddingBottom: Platform.OS === 'android' ? spacing(100) : spacing(80),
-  },
-  servicesList: { 
-    marginBottom: spacing(24) 
-  },
-  serviceCard: { 
-    borderRadius: spacing(16),
-    marginBottom: spacing(12), // Reduced from 14
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
-    elevation: 6,
-    overflow: 'hidden',
-  },
-   headerSection: {
-    paddingTop: hp(6.8),
-    paddingHorizontal: wp(4.8),
-    paddingBottom: hp(3.5), // Increased bottom padding slightly for visual balance
-    borderBottomLeftRadius: 28, // Slightly rounder looks more modern
-    borderBottomRightRadius: 28,
-    overflow: 'hidden',
-    position: 'relative',
-    // Remove shadow here, let the gradient do the work
-  },
-  serviceCardTouchable: {
+
+  headerInner: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: spacing(15), // Reduced from 18
-    minHeight: responsiveValue({
-      small: hp(7.5), // Reduced from 8
-      medium: hp(8), // Reduced from 8.8
-      large: hp(8.5), // Reduced from 9
-      tablet: hp(10),
-      default: hp(8), // Reduced from 8.8
-    }),
+    justifyContent: 'space-between',
   },
-  serviceIcon: { 
-    width: responsiveValue({
-      small: wp(10),   // Reduced from 11
-      medium: wp(11),  // Reduced from 12.8
-      large: wp(11),   // Reduced from 12.8
-      tablet: wp(9),
-      default: wp(11), // Reduced from 12.8
-    }),
-    height: responsiveValue({
-      small: wp(10),   // Reduced from 11
-      medium: wp(11),  // Reduced from 12.8
-      large: wp(11),   // Reduced from 12.8
-      tablet: wp(9),
-      default: wp(11), // Reduced from 12.8
-    }),
-    borderRadius: responsiveValue({
-      small: wp(5),    // Reduced from 5.5
-      medium: wp(5.5), // Reduced from 6.4
-      large: wp(5.5),  // Reduced from 6.4
-      tablet: wp(4.5),
-      default: wp(5.5), // Reduced from 6.4
-    }),
+
+  backBtn: {
+    width: 38,
+    height: 38,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: spacing(14), // Reduced from 16
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
   },
-  serviceTextContainer: {
+
+  headerTitle: {
+    fontSize: fs(20),
+    fontWeight: '700',
+    color: '#ffffff',
+    fontFamily: 'Inter-Bold',
+  },
+
+  // ── Scroll ──
+  scrollContainer: {
     flex: 1,
-    marginRight: spacing(10) // Reduced from 12
   },
-  serviceTitle: { 
-    fontSize: fs(15), // Reduced from 16
-    fontWeight: '600', 
-    color: 'white', 
-    fontFamily: 'Inter-SemiBold',
-    marginBottom: spacing(3)
-  },
-  serviceDescription: { 
-    fontSize: fs(12), // Reduced from 13
-    color: 'white', 
-    fontFamily: 'Inter-Regular',
-    lineHeight: fs(16) // Reduced from 18
-  },
-  infoCard: { 
-    backgroundColor: '#ffffff', 
-    borderRadius: spacing(16), 
-    padding: spacing(16), // Reduced from 20
-    marginBottom: spacing(16), // Reduced from 20
-    borderWidth: 1,
-    borderColor: '#e5e7eb'
-  },
-  infoTitle: { 
-    fontSize: fs(16), // Reduced from 17
-    fontWeight: '600', 
-    color: '#111827', 
-    fontFamily: 'Inter-SemiBold', 
-    marginBottom: spacing(14) // Reduced from 16
-  },
-  infoList: { 
-    gap: spacing(8) // Reduced from 10
-  },
-  infoItem: { 
-    fontSize: fs(13), // Reduced from 14
-    color: '#374151', 
-    fontFamily: 'Inter-Regular', 
-    lineHeight: fs(18) // Reduced from 20
+  scrollContent: {
+    paddingTop: spacing(16),
+    paddingBottom: Platform.OS === 'android' ? spacing(110) : spacing(90),
   },
 });

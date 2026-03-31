@@ -3,6 +3,7 @@ import * as WebBrowser from 'expo-web-browser';
 import * as Google from 'expo-auth-session/providers/google';
 
 import { AuthService } from '../api/apiService';
+import { SecureStorageService } from '../services/secureStorage';
 import { Platform } from 'react-native';
 import { useAuth } from '../context/AuthContext';
 
@@ -50,15 +51,22 @@ export const useGoogleAuth = () => {
             console.log('Login successful, JWT received');
             console.log('User:', serverResponse.user);
 
-            // Wait for AsyncStorage to fully persist the token
-            // This prevents race conditions on iOS where the token might not be ready
-            await new Promise(resolve => setTimeout(resolve, 150));
+            // Verify token storage with retry to handle interceptor race conditions.
+            // A stale 401 from a previous session can clear the freshly stored token.
+            let stored = false;
+            for (let attempt = 0; attempt < 3; attempt++) {
+              await new Promise(resolve => setTimeout(resolve, 150));
+              const isStored = await AuthService.isAuthenticated();
+              if (isStored) {
+                stored = true;
+                break;
+              }
+              // Token was cleared by a stale interceptor; re-store it
+              console.warn(`JWT verification attempt ${attempt + 1} failed, re-storing...`);
+              await SecureStorageService.setAuthToken(serverResponse.jwt);
+            }
 
-            // Verify the token was actually stored
-            const isStored = await AuthService.isAuthenticated();
-            if (!isStored) {
-              console.warn('JWT was not stored properly, retrying...');
-              // Token wasn't stored, this shouldn't happen but handle gracefully
+            if (!stored) {
               throw new Error('Failed to store authentication token');
             }
 

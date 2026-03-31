@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useCallback, useState } from 'react';
 import {
   View,
   Text,
@@ -7,17 +7,19 @@ import {
   TouchableOpacity,
   Share,
   Alert,
-  Clipboard,
   Dimensions,
   StatusBar,
   ActivityIndicator,
   RefreshControl,
   Linking,
   Platform,
+  TextInput,
 } from 'react-native';
+import Clipboard from '@react-native-clipboard/clipboard';
 import { LinearGradient } from 'expo-linear-gradient';
 import { ArrowLeft, Gift, Users, IndianRupee, Share2, Copy, Wallet, CheckCircle, Info, AlertCircle } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
+import { useFocusEffect } from '@react-navigation/native';
 import { useReferral } from '../../context/ReferralContext';
 import { useTheme } from '../../context/ThemeContext';
 import { wp, hp, fs, spacing } from '../../utils/responsive';
@@ -77,9 +79,41 @@ export default function ReferFriendsScreen() {
     refreshReferralData,
     shareMessage,
     canRedeem,
+    hasUsedReferralCode,
+    applyReferralCode,
   } = useReferral();
   
+  const [friendCode, setFriendCode] = useState('');
+  const [isApplyingCode, setIsApplyingCode] = useState(false);
+  
   const referralLink = referralCode ? `https://scrapiz.in/ref/${referralCode}` : '';
+
+  // Re-fetch fresh balance every time the screen is focused so rewards
+  // credited just before navigation (e.g. after applying a referral code)
+  // are immediately visible.
+  useFocusEffect(
+    useCallback(() => {
+      refreshReferralData();
+    }, [])
+  );
+
+  const handleApplyFriendCode = async () => {
+    const code = friendCode.trim().toUpperCase();
+    if (!code) {
+      Alert.alert('Error', 'Please enter a referral code.');
+      return;
+    }
+    setIsApplyingCode(true);
+    try {
+      await applyReferralCode(code);
+      setFriendCode('');
+      Alert.alert('🎉 Bonus Applied!', 'You\'ve received ₹10 in your referral wallet!');
+    } catch (err: any) {
+      Alert.alert('Invalid Code', err.message || 'The referral code could not be applied. Please check and try again.');
+    } finally {
+      setIsApplyingCode(false);
+    }
+  };
 
   const handleShare = async () => {
     if (!shareMessage || !referralCode) {
@@ -261,8 +295,8 @@ export default function ReferFriendsScreen() {
                 </View>
                 <Text style={styles.balanceSubtext}>
                   {canRedeem 
-                    ? 'Auto-redeems on next order (min ₹120)' 
-                    : `Earn ₹${(120 - referralBalance).toFixed(2)} more to redeem`}
+                    ? 'Usable on orders above ₹400' 
+                    : 'Refer friends to start earning!'}
                 </Text>
               </View>
             </View>
@@ -272,7 +306,7 @@ export default function ReferFriendsScreen() {
                 <View style={styles.pendingDot} />
                 <Text style={styles.pendingText}>Pending: ₹{pendingBalance.toFixed(2)}</Text>
               </View>
-              <Text style={styles.pendingSubtext}>Clears after pickup verification</Text>
+              <Text style={styles.pendingSubtext}>Credits instantly on sign-up</Text>
             </View>
           </LinearGradient>
         </View>
@@ -314,6 +348,41 @@ export default function ReferFriendsScreen() {
           )}
         </View>
 
+        {/* Have a Friend's Code? — shown only until the user applies one */}
+        {!hasUsedReferralCode && (
+          <View style={[styles.friendCodeCard, { backgroundColor: colors.card, borderColor: colors.primary }]}>
+            <View style={styles.sectionHeader}>
+              <Gift size={22} color={colors.primary} />
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>Have a Friend's Code?</Text>
+            </View>
+            <Text style={[styles.friendCodeSubtitle, { color: colors.textSecondary }]}>
+              Enter your friend's referral code to get ₹10 instantly in your referral wallet!
+            </Text>
+            <View style={styles.friendCodeInputRow}>
+              <TextInput
+                style={[styles.friendCodeInput, { backgroundColor: colors.background, borderColor: colors.border, color: colors.text }]}
+                placeholder="e.g. ABCD-1234"
+                placeholderTextColor={colors.textSecondary}
+                value={friendCode}
+                onChangeText={setFriendCode}
+                autoCapitalize="characters"
+                maxLength={10}
+              />
+              <TouchableOpacity
+                style={[styles.friendCodeButton, { backgroundColor: colors.primary, opacity: isApplyingCode ? 0.7 : 1 }]}
+                onPress={handleApplyFriendCode}
+                disabled={isApplyingCode}
+                activeOpacity={0.8}
+              >
+                {isApplyingCode
+                  ? <ActivityIndicator size="small" color="white" />
+                  : <Text style={styles.friendCodeButtonText}>Apply</Text>
+                }
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+
         {/* How It Works */}
         <View style={[styles.howItWorksCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <View style={styles.sectionHeader}>
@@ -345,9 +414,9 @@ export default function ReferFriendsScreen() {
                 <View style={[styles.stepLine, { backgroundColor: colors.border }]} />
               </View>
               <View style={styles.stepContent}>
-                <Text style={[styles.stepTitle, { color: colors.text }]}>Friend Books Service</Text>
+                <Text style={[styles.stepTitle, { color: colors.text }]}>Friend Signs Up</Text>
                 <Text style={[styles.stepDesc, { color: colors.textSecondary }]}>
-                  Your friend signs up using your code & books a scrap pickup worth minimum ₹300
+                  Your friend signs up using your referral code
                 </Text>
               </View>
             </View>
@@ -361,7 +430,7 @@ export default function ReferFriendsScreen() {
               <View style={styles.stepContent}>
                 <Text style={[styles.stepTitle, { color: colors.text }]}>Both Earn Rewards!</Text>
                 <Text style={[styles.stepDesc, { color: colors.textSecondary }]}>
-                  You get ₹20 in wallet • Your friend gets ₹10 on their first Pickup
+                  You get ₹20 instantly • Your friend gets ₹10 on sign-up
                 </Text>
               </View>
             </View>
@@ -414,7 +483,7 @@ export default function ReferFriendsScreen() {
             <View style={styles.benefitContent}>
               <Text style={[styles.benefitTitle, { color: colors.text }]}>Smart Savings</Text>
               <Text style={[styles.benefitDesc, { color: colors.textSecondary }]}>
-                Your ₹20 earnings auto-redeem on next order (min ₹120 balance) - no manual redemption needed!
+                Your ₹20 earnings are auto-applied when order value exceeds ₹400 — no manual redemption needed!
               </Text>
             </View>
           </View>
@@ -453,10 +522,9 @@ export default function ReferFriendsScreen() {
           <View style={styles.infoContent}>
             <Text style={[styles.infoText, { color: colors.textSecondary }]}>
               ✓ Friend must use your code during signup{'\n'}
-              ✓ First order must be minimum ₹500{'\n'}
-              ✓ You earn ₹20, friend gets ₹5 after pickup verification{'\n'}
-              ✓ Minimum ₹120 balance required for redemption{'\n'}
-              ✓ Balance auto-redeems on your next order{'\n'}
+              ✓ You earn ₹20, friend gets ₹10 instantly on sign-up{'\n'}
+              ✓ Order value must exceed ₹400 to redeem{'\n'}
+              ✓ Balance auto-applies on eligible orders{'\n'}
               ✓ Valid for genuine referrals only
             </Text>
           </View>
@@ -646,6 +714,54 @@ const styles = StyleSheet.create({
     color: '#6b7280',
     fontFamily: 'Inter-Medium',
     textAlign: 'center',
+  },
+
+  // Friend's Code card
+  friendCodeCard: {
+    borderRadius: 20,
+    padding: 20,
+    marginBottom: 24,
+    borderWidth: 1.5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 10,
+    elevation: 3,
+  },
+  friendCodeSubtitle: {
+    fontSize: 13,
+    fontFamily: 'Inter-Regular',
+    marginBottom: 14,
+    lineHeight: 19,
+  },
+  friendCodeInputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  friendCodeInput: {
+    flex: 1,
+    height: 46,
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    fontSize: 15,
+    fontFamily: 'Inter-Medium',
+    letterSpacing: 1,
+  },
+  friendCodeButton: {
+    height: 46,
+    paddingHorizontal: 18,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    minWidth: 72,
+  },
+  friendCodeButtonText: {
+    color: 'white',
+    fontSize: 14,
+    fontWeight: '700',
+    fontFamily: 'Inter-Bold',
   },
 
   // How It Works

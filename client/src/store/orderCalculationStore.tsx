@@ -13,11 +13,13 @@ interface OrderCalculationState {
   items: OrderItem[];
   estimatedValue: number;
   referralBonus: number;
+  deliveryCharge: number;
   totalPayout: number;
   
   // Referral wallet
   useReferralBonus: boolean;
   availableReferralBalance: number;
+  customReferralAmount: number;
   setTotalPayout: (totalPayout: number) => void;
   
   // Actions
@@ -30,11 +32,14 @@ interface OrderCalculationState {
   setAvailableReferralBalance: (balance: number) => void;
   toggleReferralBonus: () => void;
   setUseReferralBonus: (use: boolean) => void;
+  setCustomReferralAmount: (amount: number) => void;
   
   // Calculation helpers
   calculateEstimatedValue: () => number;
   calculateReferralBonus: () => number;
+  calculateDeliveryCharge: () => number;
   calculateTotalPayout: () => number;
+  getTotalWeight: () => number;
   
   // Reset
   resetOrder: () => void;
@@ -47,13 +52,20 @@ export const useOrderCalculationStore = create<OrderCalculationState>((set, get)
   items: [],
   estimatedValue: 0,
   referralBonus: 0,
+  deliveryCharge: 0,
   totalPayout: 0,
   useReferralBonus: false,
   availableReferralBalance: 0,
+  customReferralAmount: 0,
   setTotalPayout: (totalPayout) => {
     set({ totalPayout });
   },
   
+  // Get total weight of all items (in kg)
+  getTotalWeight: () => {
+    return get().items.reduce((sum, item) => sum + item.quantity, 0);
+  },
+
   // Set all items and recalculate
   setItems: (items) => {
     const estimatedValue = items.reduce(
@@ -61,13 +73,17 @@ export const useOrderCalculationStore = create<OrderCalculationState>((set, get)
       0
     );
     const state = get();
-    const referralBonus = state.useReferralBonus ? state.availableReferralBalance : 0;
-    const totalPayout = estimatedValue + referralBonus;
+    const referralBonus = state.useReferralBonus ? state.customReferralAmount : 0;
+    const totalWeight = items.reduce((sum, item) => sum + item.quantity, 0);
+    // Delivery charge: ₹30 if weight < 20kg AND value < ₹200
+    const deliveryCharge = (totalWeight < 20 && estimatedValue < 200) ? 30 : 0;
+    const totalPayout = estimatedValue + referralBonus - deliveryCharge;
     
     set({ 
       items, 
       estimatedValue, 
       referralBonus, 
+      deliveryCharge,
       totalPayout 
     });
   },
@@ -112,7 +128,7 @@ export const useOrderCalculationStore = create<OrderCalculationState>((set, get)
     const state = get();
     if (state.useReferralBonus) {
       const referralBonus = balance;
-      const totalPayout = state.estimatedValue + referralBonus;
+      const totalPayout = state.estimatedValue + referralBonus - state.deliveryCharge;
       set({ referralBonus, totalPayout });
     }
   },
@@ -122,7 +138,7 @@ export const useOrderCalculationStore = create<OrderCalculationState>((set, get)
     const state = get();
     const newUseReferral = !state.useReferralBonus;
     const referralBonus = newUseReferral ? state.availableReferralBalance : 0;
-    const totalPayout = state.estimatedValue + referralBonus;
+    const totalPayout = state.estimatedValue + referralBonus - state.deliveryCharge;
     
     set({ 
       useReferralBonus: newUseReferral, 
@@ -135,7 +151,7 @@ export const useOrderCalculationStore = create<OrderCalculationState>((set, get)
   setUseReferralBonus: (use) => {
     const state = get();
     const referralBonus = use ? state.availableReferralBalance : 0;
-    const totalPayout = state.estimatedValue + referralBonus;
+    const totalPayout = state.estimatedValue + referralBonus - state.deliveryCharge;
     
     set({ 
       useReferralBonus: use, 
@@ -153,8 +169,13 @@ export const useOrderCalculationStore = create<OrderCalculationState>((set, get)
   calculateReferralBonus: () => {
     return get().referralBonus;
   },
+
+  // Calculate delivery charge
+  calculateDeliveryCharge: () => {
+    return get().deliveryCharge;
+  },
   
-  // Calculate total payout (estimated value + referral bonus)
+  // Calculate total payout (estimated value + referral bonus - delivery charge)
   calculateTotalPayout: () => {
     return get().totalPayout;
   },
@@ -165,8 +186,10 @@ export const useOrderCalculationStore = create<OrderCalculationState>((set, get)
       items: [],
       estimatedValue: 0,
       referralBonus: 0,
+      deliveryCharge: 0,
       totalPayout: 0,
       useReferralBonus: false,
+      customReferralAmount: 0,
     });
   },
 }));

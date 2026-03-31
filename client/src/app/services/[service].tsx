@@ -4,7 +4,6 @@ import {
   Text, 
   StyleSheet, 
   TouchableOpacity, 
-  SafeAreaView, 
   ScrollView,
   StatusBar,
   Platform
@@ -12,6 +11,7 @@ import {
 import { ArrowLeft, Calendar, Clock, Shield, CheckCircle, Star } from 'lucide-react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { services } from '../(tabs)/services';
+import { getServiceBookingRoute } from './serviceRoutingConfig';
 import { useTheme } from '../../context/ThemeContext';
 import { useLocalization } from '../../context/LocalizationContext';
 import { wp, hp, fs, spacing } from '../../utils/responsive';
@@ -57,8 +57,8 @@ export default function ServiceDetailsScreen() {
 
   const handleBookNow = () => {
     if (!service) return;
-    router.push({ 
-      pathname: '/services/book', 
+    router.push({
+      pathname: getServiceBookingRoute(service.id),
       params: { service: service.id } 
     } as any);
   };

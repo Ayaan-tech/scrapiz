@@ -12,6 +12,7 @@ interface ReferralContextType {
   successfulReferrals: number;
   referredUsers: ReferredUser[];
   transactions: ReferralTransaction[];
+  hasUsedReferralCode: boolean;
   
   // Loading states
   isLoading: boolean;
@@ -25,6 +26,7 @@ interface ReferralContextType {
   refreshReferralData: () => Promise<void>;
   clearError: () => void;
   updateBalanceAndCache: (newBalance: number) => Promise<void>;
+  applyReferralCode: (code: string) => Promise<void>;
   
   // Utility
   canRedeem: boolean;
@@ -49,6 +51,7 @@ export function ReferralProvider({children}:{children: ReactNode}){
     const [successfulReferrals, setSuccessfulReferrals] = useState(0);
     const [referredUsers, setReferredUsers] = useState<ReferredUser[]>([]);
     const [transactions, setTransactions] = useState<ReferralTransaction[]>([]);
+    const [hasUsedReferralCode, setHasUsedReferralCode] = useState(false);
     
     const [isLoading, setIsLoading] = useState(false);
     const [isRefreshing, setIsRefreshing] = useState(false);
@@ -120,6 +123,7 @@ export function ReferralProvider({children}:{children: ReactNode}){
             setReferralCode(userProfile.referral_code || null);
             const balance = parseFloat(userProfile.referred_balance || '0');
             setReferralBalance(isNaN(balance) ? 0 : balance);
+            setHasUsedReferralCode(userProfile.has_used_referral_code ?? false);
 
             // Fetch referred users list
             try {
@@ -129,11 +133,10 @@ export function ReferralProvider({children}:{children: ReactNode}){
                 // Calculate statistics from referred users
                 const total = referredUsersData.length;
                 const successful = referredUsersData.filter(u => u.has_completed_first_order).length;
-                const pending = total - successful;
                 
                 setTotalReferrals(total);
                 setSuccessfulReferrals(successful);
-                setPendingBalance(pending * 20); // ₹20 per pending referral
+                setPendingBalance(0); // Rewards are now instant on signup
             } catch (err: any) {
                 console.error('Failed to fetch referred users:', err);
                 // Continue even if this fails
@@ -168,6 +171,15 @@ export function ReferralProvider({children}:{children: ReactNode}){
     // Clear error
     const clearError = () => setError(null);
 
+    // Apply a friend's referral code
+    const applyReferralCode = async (code: string): Promise<void> => {
+        const updated = await AuthService.updateUserProfile({ promo_code: code.trim().toUpperCase() });
+        const newBalance = parseFloat(updated.referred_balance || '0');
+        setReferralBalance(isNaN(newBalance) ? 0 : newBalance);
+        setHasUsedReferralCode(updated.has_used_referral_code ?? true);
+        await cacheReferralData();
+    };
+
     // Update balance and immediately cache it
     const updateBalanceAndCache = async (newBalance: number) => {
         setReferralBalance(newBalance);
@@ -188,10 +200,10 @@ export function ReferralProvider({children}:{children: ReactNode}){
     };
 
     // Computed values
-    const canRedeem = referralBalance >= 120;
+    const canRedeem = referralBalance > 0;
     
     const shareMessage = referralCode
-        ? `🌱 Join me on Scrapiz - India's #1 Scrap Selling Platform!\n\n💰 Use my code: ${referralCode}\n🎁 You get ₹5 bonus on your first order (min ₹500)\n🎁 I earn ₹20 when you complete pickup\n\n♻️ Turn your scrap into cash instantly!\n\n`
+        ? `🌱 Join me on Scrapiz - India's #1 Scrap Selling Platform!\n\n💰 Use my code: ${referralCode}\n🎁 You get ₹10 bonus instantly on sign-up\n🎁 I earn ₹20 when you join\n\n♻️ Turn your scrap into cash instantly!\n\n📱 Download Scrapiz:\n🤖 Android: https://play.google.com/store/apps/details?id=com.scrapiz.app\n🍎 iOS: https://apps.apple.com/in/app/scrapiz-sell-scrap-online/id6756441850`
         : '';
 
     // Legacy compatibility - for bonus system, return full balance
@@ -224,6 +236,7 @@ export function ReferralProvider({children}:{children: ReactNode}){
             successfulReferrals,
             referredUsers,
             transactions,
+            hasUsedReferralCode,
             isLoading,
             isRefreshing,
             error,
@@ -231,6 +244,7 @@ export function ReferralProvider({children}:{children: ReactNode}){
             refreshReferralData,
             clearError,
             updateBalanceAndCache,
+            applyReferralCode,
             canRedeem,
             shareMessage,
             // Legacy compatibility

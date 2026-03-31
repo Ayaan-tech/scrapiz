@@ -30,11 +30,15 @@ import {
 } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import { useReferral } from '../../context/ReferralContext';
-import { useTheme } from '../../contexts/ThemeContext';
+import { useTheme } from '../../context/ThemeContext';
 import { wp, hp, fs, spacing } from '../../utils/responsive';
+import type { ReferralTransaction } from '../../types/referral';
+
+const { width } = Dimensions.get('window');
 
 export default function RewardsWalletScreen() {
   const router = useRouter();
+  const { colors, isDark } = useTheme();
   
   // Get data from ReferralContext
   const {
@@ -63,32 +67,55 @@ export default function RewardsWalletScreen() {
     return { totalEarned: earned, totalSpent: spent };
   }, [transactions]);
 
+  // Group transactions by date for timeline
+  const groupedTransactions = useMemo(() => {
+    const groups: { label: string; items: ReferralTransaction[] }[] = [];
+    const map = new Map<string, ReferralTransaction[]>();
+
+    for (const t of transactions) {
+      const d = new Date(t.date);
+      const now = new Date();
+      const diffDays = Math.floor((now.getTime() - d.getTime()) / (1000 * 60 * 60 * 24));
+      let label: string;
+      if (diffDays === 0) label = 'Today';
+      else if (diffDays === 1) label = 'Yesterday';
+      else label = d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+
+      if (!map.has(label)) map.set(label, []);
+      map.get(label)!.push(t);
+    }
+
+    for (const [label, items] of map) {
+      groups.push({ label, items });
+    }
+    return groups;
+  }, [transactions]);
+
   const getTransactionIcon = (type: 'earned' | 'redeemed' | 'pending') => {
     switch (type) {
       case 'earned':
-        return <Gift size={18} color="#16a34a" />;
+        return <Gift size={16} color="#16a34a" />;
       case 'redeemed':
-        return <ArrowUpRight size={18} color="#6b7280" />;
+        return <ArrowUpRight size={16} color="#6b7280" />;
       case 'pending':
-        return <Clock size={18} color="#f59e0b" />;
+        return <Clock size={16} color="#f59e0b" />;
       default:
-        return <Coins size={18} color="#16a34a" />;
+        return <Coins size={16} color="#16a34a" />;
     }
   };
 
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    const now = new Date();
-    const diffTime = Math.abs(now.getTime() - date.getTime());
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    
-    if (diffDays === 0) {
-      return `Today, ${date.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', hour12: true })}`;
-    } else if (diffDays === 1) {
-      return `Yesterday, ${date.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', hour12: true })}`;
-    } else {
-      return date.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit', hour12: true });
+  const getDotColor = (type: 'earned' | 'redeemed' | 'pending') => {
+    switch (type) {
+      case 'earned': return '#16a34a';
+      case 'redeemed': return '#6b7280';
+      case 'pending': return '#f59e0b';
+      default: return '#16a34a';
     }
+  };
+
+  const formatTime = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', hour12: true });
   };
 
   // Loading state
@@ -169,7 +196,7 @@ export default function RewardsWalletScreen() {
         colors={['#16a34a', '#15803d', '#166534']}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
-        className={styles.header}
+        style={styles.header}
       >
         <View style={styles.headerTop}>
           <TouchableOpacity 
@@ -226,10 +253,10 @@ export default function RewardsWalletScreen() {
             </TouchableOpacity>
           )}
 
-          {!canRedeem && referralBalance > 0 && (
+          {!canRedeem && referralBalance === 0 && (
             <View style={styles.withdrawDisabled}>
               <Text style={styles.withdrawDisabledText}>
-                ₹{(120 - referralBalance).toFixed(2)} more to withdraw (Min ₹120)
+                Refer friends to start earning rewards!
               </Text>
             </View>
           )}
@@ -281,47 +308,29 @@ export default function RewardsWalletScreen() {
             <View style={styles.infoPoint}>
               <View style={[styles.infoDot, { backgroundColor: colors.primary }]} />
               <Text style={[styles.infoText, { color: colors.textSecondary }]}>
-                <Text style={[styles.infoBold, { color: colors.text }]}>Sell scrap, get paid directly</Text> to your bank account
+                <Text style={[styles.infoBold, { color: colors.text }]}>Refer a friend</Text> — you get ₹20, they get ₹10 instantly
               </Text>
             </View>
 
             <View style={styles.infoPoint}>
               <View style={[styles.infoDot, { backgroundColor: colors.primary }]} />
               <Text style={[styles.infoText, { color: colors.textSecondary }]}>
-                <Text style={[styles.infoBold, { color: colors.text }]}>Referral bonus is separate</Text> - earn extra ₹20 per referral
+                <Text style={[styles.infoBold, { color: colors.text }]}>Use on orders</Text> — auto-applied when order value exceeds ₹400
               </Text>
             </View>
 
             <View style={styles.infoPoint}>
               <View style={[styles.infoDot, { backgroundColor: colors.primary }]} />
               <Text style={[styles.infoText, { color: colors.textSecondary }]}>
-                <Text style={[styles.infoBold, { color: colors.text }]}>Withdraw anytime</Text> - minimum ₹100 to bank account
+                <Text style={[styles.infoBold, { color: colors.text }]}>Withdraw anytime</Text> — transfer to bank when balance is available
               </Text>
-            </View>
-          </View>
-
-          {/* Example Card */}
-          <View style={[styles.exampleBox, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-            <Text style={[styles.exampleTitle, { color: colors.text }]}>💡 How it works:</Text>
-            <View style={styles.exampleRow}>
-              <Text style={[styles.exampleText, { color: colors.textSecondary }]}>Scrap Payment:</Text>
-              <Text style={[styles.exampleValue, { color: colors.text }]}>Direct to Bank ✅</Text>
-            </View>
-            <View style={styles.exampleRow}>
-              <Text style={[styles.exampleText, { color: colors.textSecondary }]}>Referral Bonus:</Text>
-              <Text style={[styles.exampleValueGreen, { color: colors.primary }]}>In Wallet ₹120</Text>
-            </View>
-            <View style={[styles.exampleDivider, { backgroundColor: colors.border }]} />
-            <View style={styles.exampleRow}>
-              <Text style={[styles.exampleTextBold, { color: colors.text }]}>Withdraw Option:</Text>
-              <Text style={[styles.exampleValueBold, { color: colors.text }]}>Min ₹100</Text>
             </View>
           </View>
         </View>
 
         {/* Earn More CTA */}
         <TouchableOpacity
-          className='rounded-2xl overflow-hidden mb-5 shadow-xl shadow-amber-500/30'
+          style={styles.ctaCard}
           onPress={() => router.push('/profile/refer-friends' as any)}
           activeOpacity={0.8}
         >
@@ -329,88 +338,109 @@ export default function RewardsWalletScreen() {
             colors={['#f59e0b', '#f97316']}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 0 }}
-            className='flex-row items-center justify-between p-5'
+            style={styles.ctaGradient}
           >
-            <View className='flex-row items-center flex-1'>
-              <View className='w-[52px] h-[52px] rounded-full bg-white/25 justify-center items-center mr-[14px]'>
+            <View style={styles.ctaContent}>
+              <View style={styles.ctaIconBox}>
                 <Gift size={24} color="white" />
               </View>
-              <View className='flex-1'>
-                <Text className='text-base font-bold text-white font-inter-bold mb-1'>Invite Friends & Earn</Text>
-                <Text className='text-sm text-white/90 font-inter-medium'>Get ₹20 per referral</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.ctaTitle}>Invite Friends & Earn</Text>
+                <Text style={styles.ctaSubtitle}>Get ₹20 per referral — they get ₹10</Text>
               </View>
             </View>
-            <View className='w-10 h-10 rounded-full bg-white/25 justify-center items-center'>
+            <View style={styles.ctaArrow}>
               <ArrowUpRight size={24} color="white" strokeWidth={2.5} />
             </View>
           </LinearGradient>
         </TouchableOpacity>
 
-        {/* Transaction History */}
-        <View className='mb-5'>
-          <View className='flex-row items-center mb-4'>
-            <View className='w-9 h-9 rounded-full bg-emerald-50 justify-center items-center mr-2.5'>
+        {/* Timeline Transaction History */}
+        <View style={styles.timelineSection}>
+          <View style={styles.timelineHeader}>
+            <View style={[styles.timelineHeaderIcon, { backgroundColor: isDark ? 'rgba(22, 163, 74, 0.15)' : '#ecfdf5' }]}>
               <History size={20} color="#16a34a" />
             </View>
-            <Text className='text-lg font-bold text-gray-900 font-inter-bold'>Transaction History</Text>
+            <Text style={[styles.timelineHeaderTitle, { color: colors.text }]}>Transaction History</Text>
           </View>
 
           {transactions.length === 0 ? (
-            // Empty state
-            <View className='bg-white rounded-xl p-8 items-center shadow-md shadow-black/5'>
-              <View className='w-16 h-16 rounded-full bg-gray-100 justify-center items-center mb-4'>
+            <View style={[styles.emptyState, { backgroundColor: colors.card }]}>
+              <View style={[styles.emptyIcon, { backgroundColor: isDark ? 'rgba(156, 163, 175, 0.15)' : '#f3f4f6' }]}>
                 <History size={32} color="#9ca3af" />
               </View>
-              <Text className='text-lg font-bold text-gray-900 font-inter-bold mb-2'>No Transactions Yet</Text>
-              <Text className='text-sm text-gray-500 text-center font-inter-regular mb-5'>
+              <Text style={[styles.emptyTitle, { color: colors.text }]}>No Transactions Yet</Text>
+              <Text style={[styles.emptySubtitle, { color: colors.textSecondary }]}>
                 Start referring friends to earn rewards and see your transaction history here!
               </Text>
               <TouchableOpacity
-                className='bg-green-600 rounded-xl py-3 px-6'
+                style={styles.emptyButton}
                 onPress={() => router.push('/profile/refer-friends' as any)}
                 activeOpacity={0.8}
               >
-                <Text className='text-sm font-bold text-white font-inter-bold'>Invite Friends Now</Text>
+                <Text style={styles.emptyButtonText}>Invite Friends Now</Text>
               </TouchableOpacity>
             </View>
           ) : (
-            <View className='gap-2.5'>
-              {transactions.map((transaction) => (
-                <View key={transaction.id} className='bg-white rounded-xl p-4 flex-row justify-between items-center shadow-md shadow-black/5'>
-                  <View className='flex-row items-center flex-1 mr-3'>
-                    <View style={[
-                      styles.transactionIcon,
-                      transaction.type === 'earned' && styles.transactionIconEarned,
-                      transaction.type === 'redeemed' && styles.transactionIconSpent,
-                      transaction.type === 'pending' && styles.transactionIconPending,
-                    ]}>
-                      {getTransactionIcon(transaction.type)}
-                    </View>
-
-                    <View className='flex-1'>
-                      <Text className='text-sm font-semibold text-gray-900 font-inter-semibold mb-[3px]'>
-                        {transaction.type === 'earned' ? 'Referral Bonus' : transaction.type === 'redeemed' ? 'Redeemed to Bank' : 'Referral Pending'}
-                      </Text>
-                      <Text className='text-xs text-gray-500 font-inter-regular mb-[3px]'>{transaction.description}</Text>
-                      <Text className='text-xs text-gray-400 font-inter-regular'>{formatDate(transaction.date)}</Text>
+            <View>
+              {groupedTransactions.map((group, groupIndex) => (
+                <View key={group.label} style={styles.timelineGroup}>
+                  {/* Date Label */}
+                  <View style={styles.timelineDateRow}>
+                    <View style={[styles.timelineDateBadge, { backgroundColor: isDark ? 'rgba(22, 163, 74, 0.15)' : '#ecfdf5' }]}>
+                      <Text style={[styles.timelineDateText, { color: colors.primary }]}>{group.label}</Text>
                     </View>
                   </View>
 
-                  <View className='items-end'>
-                    <Text style={[
-                      styles.transactionAmount,
-                      transaction.type === 'earned' && styles.transactionAmountEarned,
-                      transaction.type === 'redeemed' && styles.transactionAmountSpent,
-                      transaction.type === 'pending' && styles.transactionAmountPending,
-                    ]}>
-                      {transaction.amount > 0 ? '+' : ''}₹{Math.abs(transaction.amount).toFixed(2)}
-                    </Text>
-                    {transaction.type === 'pending' && (
-                      <View className='bg-amber-100 px-2 py-[3px] rounded-md mt-1'>
-                        <Text className='text-[10px] font-semibold text-amber-500 font-inter-semibold'>Pending</Text>
+                  {/* Transactions */}
+                  {group.items.map((transaction, itemIndex) => {
+                    const isLast = groupIndex === groupedTransactions.length - 1 && itemIndex === group.items.length - 1;
+                    const dotColor = getDotColor(transaction.type);
+
+                    return (
+                      <View key={transaction.id} style={styles.timelineItem}>
+                        {/* Timeline Track */}
+                        <View style={styles.timelineTrack}>
+                          <View style={[styles.timelineDotOuter, { borderColor: dotColor }]}>
+                            <View style={[styles.timelineDotInner, { backgroundColor: dotColor }]} />
+                          </View>
+                          {!isLast && <View style={[styles.timelineLine, { backgroundColor: isDark ? 'rgba(156, 163, 175, 0.25)' : '#e5e7eb' }]} />}
+                        </View>
+
+                        {/* Transaction Card */}
+                        <View style={[styles.timelineCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                          <View style={styles.timelineCardTop}>
+                            <View style={[styles.timelineIconCircle, {
+                              backgroundColor: transaction.type === 'earned' ? (isDark ? 'rgba(22, 163, 74, 0.15)' : '#ecfdf5') :
+                                              transaction.type === 'pending' ? (isDark ? 'rgba(245, 158, 11, 0.15)' : '#fef3c7') :
+                                              (isDark ? 'rgba(107, 114, 128, 0.15)' : '#f3f4f6')
+                            }]}>
+                              {getTransactionIcon(transaction.type)}
+                            </View>
+                            <View style={{ flex: 1 }}>
+                              <Text style={[styles.timelineCardTitle, { color: colors.text }]}>
+                                {transaction.type === 'earned' ? 'Referral Bonus' : transaction.type === 'redeemed' ? 'Redeemed on Order' : 'Referral Pending'}
+                              </Text>
+                              <Text style={[styles.timelineCardDesc, { color: colors.textSecondary }]}>{transaction.description}</Text>
+                            </View>
+                            <View style={styles.timelineAmountBox}>
+                              <Text style={[styles.timelineAmount, {
+                                color: transaction.type === 'earned' ? '#16a34a' : transaction.type === 'pending' ? '#f59e0b' : '#6b7280'
+                              }]}>
+                                {transaction.amount > 0 ? '+' : ''}₹{Math.abs(transaction.amount).toFixed(0)}
+                              </Text>
+                              {transaction.type === 'pending' && (
+                                <View style={[styles.pendingTag, { backgroundColor: isDark ? 'rgba(245, 158, 11, 0.15)' : '#fef3c7' }]}>
+                                  <Text style={styles.pendingTagText}>Pending</Text>
+                                </View>
+                              )}
+                            </View>
+                          </View>
+                          <Text style={[styles.timelineTime, { color: colors.textSecondary }]}>{formatTime(transaction.date)}</Text>
+                        </View>
                       </View>
-                    )}
-                  </View>
+                    );
+                  })}
                 </View>
               ))}
             </View>
@@ -418,12 +448,12 @@ export default function RewardsWalletScreen() {
         </View>
 
         {/* Bottom Tip */}
-        <View className='bg-emerald-50 rounded-xl p-4 flex-row border-l-3 border-l-green-600'>
-          <View className='w-8 h-8 rounded-full bg-white justify-center items-center mr-3 mt-0.5'>
+        <View style={[styles.bottomTip, { backgroundColor: isDark ? 'rgba(22, 163, 74, 0.1)' : '#ecfdf5', borderLeftColor: '#16a34a' }]}>
+          <View style={[styles.bottomTipIcon, { backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : 'white' }]}>
             <Target size={18} color="#16a34a" />
           </View>
-          <Text className='flex-1 text-sm text-green-800 font-inter-regular leading-5'>
-            <Text className='font-semibold font-inter-semibold'>Remember:</Text> Your scrap selling payments go directly to your bank account. This wallet is only for referral bonuses - withdraw anytime once you reach ₹100!
+          <Text style={[styles.bottomTipText, { color: isDark ? '#86efac' : '#166534' }]}>
+            <Text style={{ fontWeight: '600' }}>Remember:</Text> Your scrap selling payments go directly to your bank account. This wallet is only for referral bonuses!
           </Text>
         </View>
       </ScrollView>
@@ -432,45 +462,411 @@ export default function RewardsWalletScreen() {
 }
 
 const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
   scrollContent: {
     padding: 20,
     paddingBottom: 40,
   },
-  transactionIcon: {
+  // Stats
+  statsContainer: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 20,
+  },
+  statCard: {
+    flex: 1,
+    borderRadius: 16,
+    padding: 16,
+    alignItems: 'center',
+    borderWidth: 1,
+  },
+  statIconWrapper: {
     width: 40,
     height: 40,
     borderRadius: 20,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 12,
+    marginBottom: 8,
   },
-  transactionIconEarned: {
-    backgroundColor: '#ecfdf5',
+  statValue: {
+    fontSize: 18,
+    fontWeight: '700',
+    marginBottom: 2,
   },
-  transactionIconSpent: {
-    backgroundColor: '#f3f4f6',
+  statLabel: {
+    fontSize: 12,
+    fontWeight: '500',
   },
-  transactionIconPending: {
-    backgroundColor: '#fef3c7',
+  // Info card
+  infoCard: {
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 20,
+    borderWidth: 1,
   },
-
-  transactionRight: {
-    alignItems: 'flex-end',
+  infoHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
   },
-  transactionAmount: {
+  infoIconBox: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 10,
+  },
+  infoTitle: {
     fontSize: 16,
     fontWeight: '700',
-    fontFamily: 'Inter-Bold',
-    marginBottom: 4,
   },
-  transactionAmountEarned: {
-    color: '#16a34a',
+  infoContent: {
+    gap: 12,
   },
-  transactionAmountSpent: {
-    color: '#6b7280',
+  infoPoint: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
   },
-  transactionAmountPending: {
+  infoDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    marginTop: 7,
+    marginRight: 10,
+  },
+  infoText: {
+    flex: 1,
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  infoBold: {
+    fontWeight: '600',
+  },
+  // CTA
+  ctaCard: {
+    borderRadius: 16,
+    overflow: 'hidden',
+    marginBottom: 20,
+  },
+  ctaGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 20,
+  },
+  ctaContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  ctaIconBox: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: 'rgba(255,255,255,0.25)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 14,
+  },
+  ctaTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: 'white',
+    marginBottom: 2,
+  },
+  ctaSubtitle: {
+    fontSize: 13,
+    color: 'rgba(255,255,255,0.9)',
+  },
+  ctaArrow: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.25)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  // Timeline
+  timelineSection: {
+    marginBottom: 20,
+  },
+  timelineHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  timelineHeaderIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 10,
+  },
+  timelineHeaderTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+  },
+  timelineGroup: {
+    marginBottom: 8,
+  },
+  timelineDateRow: {
+    marginBottom: 12,
+    marginLeft: 10,
+  },
+  timelineDateBadge: {
+    alignSelf: 'flex-start',
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: 12,
+  },
+  timelineDateText: {
+    fontSize: 12,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+  },
+  timelineItem: {
+    flexDirection: 'row',
+    minHeight: 80,
+  },
+  timelineTrack: {
+    width: 28,
+    alignItems: 'center',
+  },
+  timelineDotOuter: {
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    borderWidth: 2,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'transparent',
+    marginTop: 14,
+  },
+  timelineDotInner: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  timelineLine: {
+    width: 2,
+    flex: 1,
+    marginTop: 4,
+  },
+  timelineCard: {
+    flex: 1,
+    borderRadius: 14,
+    padding: 14,
+    marginLeft: 10,
+    marginBottom: 10,
+    borderWidth: 1,
+  },
+  timelineCardTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  timelineIconCircle: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 10,
+  },
+  timelineCardTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    marginBottom: 1,
+  },
+  timelineCardDesc: {
+    fontSize: 12,
+  },
+  timelineAmountBox: {
+    alignItems: 'flex-end',
+  },
+  timelineAmount: {
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  pendingTag: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    marginTop: 3,
+  },
+  pendingTagText: {
+    fontSize: 10,
+    fontWeight: '600',
     color: '#f59e0b',
   },
-
+  timelineTime: {
+    fontSize: 11,
+    marginTop: 8,
+    marginLeft: 44,
+  },
+  // Empty
+  emptyState: {
+    borderRadius: 16,
+    padding: 32,
+    alignItems: 'center',
+  },
+  emptyIcon: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  emptyTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    marginBottom: 8,
+  },
+  emptySubtitle: {
+    fontSize: 14,
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  emptyButton: {
+    backgroundColor: '#16a34a',
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+  },
+  emptyButtonText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: 'white',
+  },
+  // Bottom tip
+  bottomTip: {
+    borderRadius: 12,
+    padding: 16,
+    flexDirection: 'row',
+    borderLeftWidth: 3,
+    marginBottom: 10,
+  },
+  bottomTipIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+    marginTop: 2,
+  },
+  bottomTipText: {
+    flex: 1,
+    fontSize: 13,
+    lineHeight: 20,
+  },
+  // Header (gradient)
+  header: {
+    paddingTop: 56,
+    paddingHorizontal: 20,
+    paddingBottom: 24,
+  },
+  headerTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 24,
+  },
+  backButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.25)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  headerTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: 'white',
+    letterSpacing: 0.5,
+  },
+  headerRight: {
+    width: 40,
+  },
+  // Balance card
+  balanceCard: {
+    alignItems: 'center',
+  },
+  balanceHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  balanceIconBox: {
+    marginRight: 8,
+  },
+  balanceLabel: {
+    fontSize: 14,
+    color: 'rgba(255,255,255,0.85)',
+    fontWeight: '500',
+  },
+  balanceAmountRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  balanceAmount: {
+    fontSize: 40,
+    fontWeight: '800',
+    color: 'white',
+    marginLeft: 4,
+  },
+  balanceSubtext: {
+    fontSize: 13,
+    color: 'rgba(255,255,255,0.75)',
+    textAlign: 'center',
+    marginBottom: 12,
+  },
+  pendingBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    borderRadius: 20,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    gap: 6,
+    marginBottom: 12,
+  },
+  pendingText: {
+    fontSize: 12,
+    color: 'white',
+    fontWeight: '500',
+  },
+  withdrawButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    borderRadius: 12,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    gap: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.3)',
+  },
+  withdrawButtonText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: 'white',
+  },
+  withdrawDisabled: {
+    marginTop: 4,
+  },
+  withdrawDisabledText: {
+    fontSize: 12,
+    color: 'rgba(255,255,255,0.6)',
+    fontWeight: '500',
+  },
+  content: {
+    flex: 1,
+  },
 });

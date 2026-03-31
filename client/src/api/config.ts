@@ -128,6 +128,11 @@ export interface ServiceBookingPayload {
   address: string;
   preferredDateTime: string;
   notes?: string;
+  service_details?: {
+    service_type?: string;
+    structure_type?: string;
+    [key: string]: any;
+  };
 }
 
 export interface ServiceBooking {
@@ -140,6 +145,11 @@ export interface ServiceBooking {
   status: string;
   meeting_link?: string | null;
   meeting_event_id?: string | null;
+  service_details?: {
+    service_type?: string;
+    structure_type?: string;
+    [key: string]: any;
+  } | null;
   created_at: string;
   notes?: string | null;
 }
@@ -243,6 +253,7 @@ export interface PhoneCompleteProfileRequest {
   email: string;
   phone_number: string;
   firebase_uid: string;
+  promo_code?: string;
 }
 
 /**

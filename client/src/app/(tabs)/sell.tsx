@@ -16,6 +16,7 @@ import {
   ActivityIndicator,
   Keyboard,
   TouchableWithoutFeedback,
+  Animated,
 } from 'react-native';
 import {
   Plus,
@@ -37,6 +38,7 @@ import {
   Check,
   Clock,
   Image as ImageIcon,
+  Info,
 } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
@@ -330,16 +332,20 @@ function SellScreenContent() {
     items: selectedItems,
     estimatedValue,
     referralBonus,
+    deliveryCharge,
     totalPayout,
     useReferralBonus,
+    customReferralAmount,
     setItems,
     addItem: addItemToStore,
     updateItemQuantity,
     removeItem: removeItemFromStore,
     setAvailableReferralBalance,
     toggleReferralBonus,
+    setCustomReferralAmount,
     resetOrder,
     setTotalPayout,
+    getTotalWeight,
   } = useOrderCalculationStore();
 
   const [addressForm, setAddressForm] = useState({
@@ -367,6 +373,12 @@ function SellScreenContent() {
   // Referral wallet - use context
   const { walletBalance, setWalletBalance, updateBalanceAndCache, applyReferralDiscount } = useReferral();
   const [useReferralBalance, setUseReferralBalance] = useState(false);
+  const [rewardInputValue, setRewardInputValue] = useState('');
+  const [rewardApplied, setRewardApplied] = useState(false);
+
+  // Breakdown sidebar state
+  const [showBreakdownSidebar, setShowBreakdownSidebar] = useState(false);
+  const sidebarAnim = useRef(new Animated.Value(width)).current;
 
   // Data loading function wrapped in useCallback for network retry
   // Products and categories are loaded for all users (including guests)
@@ -554,8 +566,18 @@ function SellScreenContent() {
   const loadUserData = async () => {
     try {
       const user = await AuthService.getUser();
-      if (user && user.name) {
-        setContactForm(prev => ({ ...prev, name: user.name }));
+      if (user) {
+        setContactForm(prev => {
+          const updates: Partial<typeof prev> = {};
+          if (user.name) updates.name = user.name;
+          if (user.phone_number) {
+            // Strip all non-digits, then take the last 10 digits
+            // handles formats: "9876543210", "+919876543210", "919876543210"
+            const digitsOnly = user.phone_number.replace(/\D/g, '');
+            updates.mobile = digitsOnly.slice(-10);
+          }
+          return { ...prev, ...updates };
+        });
       }
     } catch (error) {
       console.log('Could not load user data:', error);
@@ -768,6 +790,24 @@ function SellScreenContent() {
     }
   };
 
+  // Breakdown sidebar functions
+  const openBreakdownSidebar = () => {
+    setShowBreakdownSidebar(true);
+    Animated.timing(sidebarAnim, {
+      toValue: 0,
+      duration: 300,
+      useNativeDriver: true,
+    }).start();
+  };
+
+  const closeBreakdownSidebar = () => {
+    Animated.timing(sidebarAnim, {
+      toValue: width,
+      duration: 250,
+      useNativeDriver: true,
+    }).start(() => setShowBreakdownSidebar(false));
+  };
+
   const validateMobileNumber = (mobile: string): boolean => {
     const mobileRegex = /^(\+91|91)?[6-9]\d{9}$/;
     return mobileRegex.test(mobile.replace(/\s/g, ''));
@@ -832,6 +872,8 @@ function SellScreenContent() {
     setErrors({});
     setSelectedImages([]);
     setNotes('');
+    setRewardInputValue('');
+    setRewardApplied(false);
     resetOrder();
   };
 
@@ -939,53 +981,31 @@ function SellScreenContent() {
 
       // Calculate estimated value to send
       const orderEstimatedValue = estimatedValue;
+      const orderReferralBonus = useReferralBonus && rewardApplied ? customReferralAmount : 0;
+      const orderTotalPayout = useReferralBonus ? totalPayout : estimatedValue;
 
       const result = await AuthService.createOrder(
         itemsPayload,
         addressId || undefined,
         selectedImages,
-        orderEstimatedValue
+        orderEstimatedValue,
+        orderReferralBonus > 0 ? orderReferralBonus : undefined
       );
 
       const orderId = result.order_id;
       const orderNumber = result.order_no;
 
-      const orderReferralBonus = useReferralBonus ? referralBonus : 0;
-      const orderTotalPayout = useReferralBonus ? totalPayout : estimatedValue;
-
-
-
-
-      // If using referral balance, redeem it via backend
-      if (useReferralBonus && orderReferralBonus > 0) {
-        try {
-          // Call backend to redeem balance
-          await AuthService.redeemReferralBalance(orderId, orderReferralBonus);
-
-          // Update local wallet balance and cache it
-          const newBalance = Math.max(0, walletBalance - orderReferralBonus);
-          await updateBalanceAndCache(newBalance);
-
-          Toast.show({
-            type: 'success',
-            text1: 'Referral Applied',
-            text2: `₹${Math.round(orderReferralBonus)} bonus added to your payout!`
-          });
-        } catch (redeemError: any) {
-          // Log error but don't fail the order
-          console.error('Failed to redeem referral balance:', redeemError);
-          Toast.show({
-            type: 'info',
-            text1: 'Order Created',
-            text2: 'Referral redemption will be processed shortly'
-          });
-        }
-        setTotalPayout(totalPayout);
+      if (orderReferralBonus > 0) {
+        Toast.show({
+          type: 'success',
+          text1: 'Rewards Credits Applied',
+          text2: `₹${Math.round(orderReferralBonus)} will be added to your payout on completion`
+        });
       }
 
       // Show success message
       const message = orderReferralBonus > 0
-        ? `Your scrap pickup has been scheduled successfully!\n\n📋 Order: ${orderNumber}\n💰 Estimated Value: ₹${Math.round(orderEstimatedValue)}\n🎁 Referral Bonus: +₹${Math.round(orderReferralBonus)}\n💸 Total Payout: ₹${Math.round(orderTotalPayout)}\n📅 Pickup: ${selectedDate} at ${selectedTime}\n\nOur team will arrive at your doorstep at the scheduled time.`
+        ? `Your scrap pickup has been scheduled successfully!\n\n📋 Order: ${orderNumber}\n💰 Estimated Value: ₹${Math.round(orderEstimatedValue)}\n🎁 Rewards Bonus: +₹${Math.round(orderReferralBonus)}\n💸 Total Payout: ₹${Math.round(orderTotalPayout)}\n📅 Pickup: ${selectedDate} at ${selectedTime}\n\nRewards credits will be applied when the order is completed.`
         : `Your scrap pickup has been scheduled successfully!\n\n📋 Order: ${orderNumber}\n💰 Total Amount: ₹${Math.round(orderEstimatedValue)}\n📅 Pickup: ${selectedDate} at ${selectedTime}\n\nOur team will arrive at your doorstep at the scheduled time.`;
 
       // Store order ID for feedback
@@ -1736,32 +1756,56 @@ function SellScreenContent() {
           <Text style={[styles.summaryTotalLabel, { color: colors.text }]}>Estimated Total</Text>
           <Text style={[styles.summaryTotalAmount, { color: colors.primary }]}>₹{Math.round(getTotalAmount())}</Text>
         </View>
+        {deliveryCharge > 0 && (
+          <View style={[styles.summaryTotal, { marginTop: 4 }]}>
+            <Text style={[styles.summaryTotalLabel, { color: '#f59e0b', fontSize: 13 }]}>Delivery Charge</Text>
+            <Text style={{ color: '#ef4444', fontSize: 14, fontWeight: '600', fontFamily: 'Inter-SemiBold' }}>-₹{deliveryCharge}</Text>
+          </View>
+        )}
+        <TouchableOpacity 
+          style={{ marginTop: 10, alignSelf: 'flex-end' }}
+          onPress={openBreakdownSidebar}
+          activeOpacity={0.7}
+        >
+          <Text style={{ color: colors.primary, fontSize: 13, fontWeight: '600', fontFamily: 'Inter-SemiBold' }}>View Full Breakdown →</Text>
+        </TouchableOpacity>
       </View>
       {walletBalance > 0 && (
         <View style={[styles.referralCard, { backgroundColor: colors.surface, borderColor: isDark ? colors.primary : '#dcfce7' }]}>
           <View style={styles.referralHeader}>
             <View style={styles.referralHeaderLeft}>
               <View style={[styles.referralIconContainer, { backgroundColor: isDark ? 'rgba(34, 197, 94, 0.15)' : '#dcfce7' }]}>
-                <Wallet size={20} color={walletBalance >= 120 ? colors.primary : "#f59e0b"} />
+                <Wallet size={20} color={estimatedValue >= 400 ? colors.primary : "#f59e0b"} />
               </View>
               <View>
-                <Text style={[styles.referralTitle, { color: colors.text }]}>Referral Wallet</Text>
+                <Text style={[styles.referralTitle, { color: colors.text }]}>Rewards Credits</Text>
                 <Text style={[
                   styles.referralBalance,
                   { color: colors.primary },
-                  walletBalance < 120 && { color: '#f59e0b' }
+                  estimatedValue < 400 && { color: '#f59e0b' }
                 ]}>
                   ₹{walletBalance.toFixed(2)} available
                 </Text>
               </View>
             </View>
-            {walletBalance >= 120 ? (
+            {estimatedValue >= 400 ? (
               <TouchableOpacity
                 style={[
                   styles.referralToggle,
                   useReferralBonus && styles.referralToggleActive
                 ]}
-                onPress={toggleReferralBonus}
+                onPress={() => {
+                  if (useReferralBonus) {
+                    // Turning off — reset everything
+                    toggleReferralBonus();
+                    setRewardInputValue('');
+                    setRewardApplied(false);
+                    setCustomReferralAmount(0);
+                  } else {
+                    // Turning on
+                    toggleReferralBonus();
+                  }
+                }}
               >
                 <View style={[
                   styles.referralToggleCircle,
@@ -1775,15 +1819,127 @@ function SellScreenContent() {
             )}
           </View>
 
-          {walletBalance >= 120 ? (
+          {estimatedValue >= 400 ? (
             useReferralBonus && (
-              <View style={[styles.referralDiscountInfo, { backgroundColor: isDark ? 'rgba(34, 197, 94, 0.15)' : '#f0fdf4', borderColor: isDark ? colors.primary : '#bbf7d0' }]}>
-                <Text style={[styles.referralDiscountText, { color: colors.primary }]}>
-                  💰 Referral Applied: +₹{Math.round(referralBonus)}
-                </Text>
-                <Text style={[styles.referralDiscountSubtext, { color: isDark ? '#dcfce7' : '#15803d' }]}>
-                  Bonus amount will be added to your total payout
-                </Text>
+              <View style={{ marginTop: 16 }}>
+                {!rewardApplied ? (
+                  <>
+                    <Text style={{ color: colors.textSecondary, fontSize: 13, fontFamily: 'Inter-Regular', marginBottom: 10 }}>
+                      Available Balance: <Text style={{ color: colors.primary, fontWeight: '600', fontFamily: 'Inter-SemiBold' }}>₹{walletBalance.toFixed(2)}</Text>
+                    </Text>
+                    <View style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      gap: 10,
+                    }}>
+                      <View style={{
+                        flex: 1,
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : '#f9fafb',
+                        borderRadius: 12,
+                        borderWidth: 1,
+                        borderColor: isDark ? colors.border : '#e5e7eb',
+                        paddingHorizontal: 14,
+                        height: 48,
+                      }}>
+                        <Text style={{ color: colors.textSecondary, fontSize: 16, fontFamily: 'Inter-Medium', marginRight: 4 }}>₹</Text>
+                        <TextInput
+                          style={{
+                            flex: 1,
+                            fontSize: 16,
+                            fontFamily: 'Inter-Medium',
+                            color: colors.text,
+                            paddingVertical: 0,
+                          }}
+                          value={rewardInputValue}
+                          onChangeText={(text) => {
+                            // Allow only numbers and one decimal point
+                            const cleaned = text.replace(/[^0-9.]/g, '').replace(/(\..*)\./g, '$1');
+                            setRewardInputValue(cleaned);
+                          }}
+                          placeholder={`Max ₹${walletBalance.toFixed(0)}`}
+                          placeholderTextColor={colors.inputPlaceholder}
+                          keyboardType="numeric"
+                          returnKeyType="done"
+                          onSubmitEditing={() => {
+                            const parsed = parseFloat(rewardInputValue);
+                            if (!isNaN(parsed) && parsed > 0 && parsed <= walletBalance) {
+                              setCustomReferralAmount(parsed);
+                              setRewardApplied(true);
+                              Keyboard.dismiss();
+                            }
+                          }}
+                        />
+                      </View>
+                      <TouchableOpacity
+                        style={{
+                          backgroundColor: colors.primary,
+                          borderRadius: 12,
+                          height: 48,
+                          paddingHorizontal: 20,
+                          justifyContent: 'center',
+                          alignItems: 'center',
+                          opacity: rewardInputValue.trim() === '' ? 0.5 : 1,
+                        }}
+                        disabled={rewardInputValue.trim() === ''}
+                        onPress={() => {
+                          const parsed = parseFloat(rewardInputValue);
+                          if (isNaN(parsed) || parsed <= 0) {
+                            Toast.show({ type: 'error', text1: 'Invalid Amount', text2: 'Please enter a valid amount' });
+                            return;
+                          }
+                          if (parsed > walletBalance) {
+                            Toast.show({ type: 'error', text1: 'Exceeds Balance', text2: `Maximum available is ₹${walletBalance.toFixed(2)}` });
+                            return;
+                          }
+                          setCustomReferralAmount(parsed);
+                          setRewardApplied(true);
+                          Keyboard.dismiss();
+                        }}
+                      >
+                        <Text style={{ color: '#fff', fontSize: 15, fontWeight: '600', fontFamily: 'Inter-SemiBold' }}>Apply</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </>
+                ) : (
+                  <View style={[styles.referralDiscountInfo, { backgroundColor: isDark ? 'rgba(34, 197, 94, 0.15)' : '#f0fdf4', borderColor: isDark ? colors.primary : '#bbf7d0' }]}>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                        <View style={{
+                          width: 24,
+                          height: 24,
+                          borderRadius: 12,
+                          backgroundColor: colors.primary,
+                          justifyContent: 'center',
+                          alignItems: 'center',
+                        }}>
+                          <Check size={14} color="#fff" />
+                        </View>
+                        <Text style={[styles.referralDiscountText, { color: colors.primary, marginBottom: 0 }]}>
+                          +₹{Math.round(customReferralAmount)} applied
+                        </Text>
+                      </View>
+                      <TouchableOpacity
+                        onPress={() => {
+                          setRewardApplied(false);
+                          setRewardInputValue(String(customReferralAmount));
+                        }}
+                        style={{
+                          paddingHorizontal: 12,
+                          paddingVertical: 6,
+                          borderRadius: 8,
+                          backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : '#e5e7eb',
+                        }}
+                      >
+                        <Text style={{ color: colors.textSecondary, fontSize: 13, fontWeight: '500', fontFamily: 'Inter-Medium' }}>Edit</Text>
+                      </TouchableOpacity>
+                    </View>
+                    <Text style={[styles.referralDiscountSubtext, { color: isDark ? '#dcfce7' : '#15803d', marginTop: 6 }]}>
+                      Bonus will be added to your payout upon order completion
+                    </Text>
+                  </View>
+                )}
               </View>
             )
           ) : (
@@ -1793,10 +1949,10 @@ function SellScreenContent() {
               </View>
               <View style={styles.referralLockedTextContainer}>
                 <Text style={[styles.referralLockedTitle, { color: isDark ? '#fbbf24' : '#92400e' }]}>
-                  Minimum ₹120 Required
+                  Order Value Must Exceed ₹400
                 </Text>
                 <Text style={[styles.referralLockedSubtext, { color: isDark ? '#fcd34d' : '#b45309' }]}>
-                  Earn ₹{(120 - walletBalance).toFixed(2)} more to redeem your referral balance
+                  Add ₹{Math.round(400 - estimatedValue)} more in scrap to use your referral wallet
                 </Text>
               </View>
             </View>
@@ -1805,16 +1961,24 @@ function SellScreenContent() {
       )}
 
       {/* Final Amount Summary */}
-      {useReferralBonus && referralBonus > 0 && (
+      {(useReferralBonus && referralBonus > 0) || deliveryCharge > 0 ? (
         <View style={[styles.finalAmountCard, { backgroundColor: isDark ? 'rgba(34, 197, 94, 0.15)' : '#f0fdf4', borderColor: colors.primary }]}>
           <View style={styles.finalAmountRow}>
             <Text style={[styles.finalAmountLabel, { color: colors.textSecondary }]}>Estimated Value</Text>
             <Text style={[styles.finalAmountValue, { color: colors.textSecondary }]}>₹{Math.round(estimatedValue)}</Text>
           </View>
-          <View style={styles.finalAmountRow}>
-            <Text style={[styles.finalAmountLabelBonus, { color: colors.primary }]}>Referral Bonus</Text>
-            <Text style={[styles.finalAmountValueBonus, { color: colors.primary }]}>+₹{Math.round(referralBonus)}</Text>
-          </View>
+          {useReferralBonus && referralBonus > 0 && (
+            <View style={styles.finalAmountRow}>
+              <Text style={[styles.finalAmountLabelBonus, { color: colors.primary }]}>Referral Bonus</Text>
+              <Text style={[styles.finalAmountValueBonus, { color: colors.primary }]}>+₹{Math.round(referralBonus)}</Text>
+            </View>
+          )}
+          {deliveryCharge > 0 && (
+            <View style={styles.finalAmountRow}>
+              <Text style={[styles.finalAmountLabel, { color: '#ef4444' }]}>Delivery Charge</Text>
+              <Text style={[styles.finalAmountValue, { color: '#ef4444' }]}>-₹{deliveryCharge}</Text>
+            </View>
+          )}
           <View style={[styles.finalAmountDivider, { backgroundColor: colors.primary }]} />
           <View style={styles.finalAmountRow}>
             <Text style={[styles.finalAmountLabelFinal, { color: colors.text }]}>Total Payout</Text>
@@ -1824,7 +1988,7 @@ function SellScreenContent() {
             💸 You will receive this amount from us
           </Text>
         </View>
-      )}
+      ) : null}
 
       {/* Pickup Details */}
       <View style={[styles.pickupDetailsCard, { backgroundColor: colors.surface }]}>
@@ -2060,6 +2224,77 @@ function SellScreenContent() {
             </TouchableOpacity>
           </View>
         </View>
+      )}
+
+      {/* Breakdown Sidebar */}
+      {showBreakdownSidebar && (
+        <Modal transparent visible animationType="none" onRequestClose={closeBreakdownSidebar}>
+          <TouchableWithoutFeedback onPress={closeBreakdownSidebar}>
+            <View style={sidebarStyles.overlay}>
+              <Animated.View style={[sidebarStyles.drawer, { backgroundColor: colors.surface, transform: [{ translateX: sidebarAnim }] }]}>
+                <TouchableWithoutFeedback>
+                  <View style={{ flex: 1 }}>
+                    {/* Sidebar Header */}
+                    <View style={[sidebarStyles.header, { borderBottomColor: colors.border }]}>
+                      <Text style={[sidebarStyles.headerTitle, { color: colors.text }]}>Order Breakdown</Text>
+                      <TouchableOpacity onPress={closeBreakdownSidebar} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                        <X size={22} color={colors.textSecondary} />
+                      </TouchableOpacity>
+                    </View>
+
+                    <ScrollView style={sidebarStyles.body} showsVerticalScrollIndicator={false}>
+                      {/* Items List */}
+                      <Text style={[sidebarStyles.sectionLabel, { color: colors.textSecondary }]}>ITEMS</Text>
+                      {selectedItems.map((item, index) => (
+                        <View key={item.id} style={[sidebarStyles.itemRow, index < selectedItems.length - 1 && { borderBottomWidth: 1, borderBottomColor: colors.border }]}>
+                          <View style={{ flex: 1 }}>
+                            <Text style={[sidebarStyles.itemName, { color: colors.text }]}>{item.name}</Text>
+                            <Text style={[sidebarStyles.itemMeta, { color: colors.textSecondary }]}>{item.quantity} {item.unit} × ₹{item.rate}/{item.unit}</Text>
+                          </View>
+                          <Text style={[sidebarStyles.itemPrice, { color: colors.text }]}>₹{Math.round(item.rate * item.quantity)}</Text>
+                        </View>
+                      ))}
+
+                      {/* Subtotal */}
+                      <View style={[sidebarStyles.subtotalRow, { borderTopColor: colors.border }]}>
+                        <Text style={[sidebarStyles.subtotalLabel, { color: colors.textSecondary }]}>Estimated Scrap Value</Text>
+                        <Text style={[sidebarStyles.subtotalValue, { color: colors.text }]}>₹{Math.round(estimatedValue)}</Text>
+                      </View>
+
+                      {/* Referral Bonus */}
+                      {useReferralBonus && referralBonus > 0 && (
+                        <View style={sidebarStyles.adjustmentRow}>
+                          <View style={sidebarStyles.adjustmentLeft}>
+                            <View style={[sidebarStyles.adjustmentDot, { backgroundColor: '#22c55e' }]} />
+                            <Text style={[sidebarStyles.adjustmentLabel, { color: colors.text }]}>Referral Bonus</Text>
+                          </View>
+                          <Text style={[sidebarStyles.adjustmentValue, { color: '#22c55e' }]}>+₹{Math.round(referralBonus)}</Text>
+                        </View>
+                      )}
+
+                      {/* Delivery Charge */}
+                      {deliveryCharge > 0 && (
+                        <View style={sidebarStyles.adjustmentRow}>
+                          <View style={sidebarStyles.adjustmentLeft}>
+                            <View style={[sidebarStyles.adjustmentDot, { backgroundColor: '#ef4444' }]} />
+                            <Text style={[sidebarStyles.adjustmentLabel, { color: colors.text }]}>Delivery Charge</Text>
+                          </View>
+                          <Text style={[sidebarStyles.adjustmentValue, { color: '#ef4444' }]}>-₹{deliveryCharge}</Text>
+                        </View>
+                      )}
+
+                      {/* Total */}
+                      <View style={[sidebarStyles.totalRow, { borderTopColor: colors.border }]}>
+                        <Text style={[sidebarStyles.totalLabel, { color: colors.text }]}>Total Payout</Text>
+                        <Text style={[sidebarStyles.totalValue, { color: colors.primary }]}>₹{Math.round(totalPayout)}</Text>
+                      </View>
+                    </ScrollView>
+                  </View>
+                </TouchableWithoutFeedback>
+              </Animated.View>
+            </View>
+          </TouchableWithoutFeedback>
+        </Modal>
       )}
 
       {/* Quantity Selector Modal */}
@@ -3833,5 +4068,122 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: 'white',
+  },
+});
+
+const sidebarStyles = StyleSheet.create({
+  overlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+  },
+  drawer: {
+    width: width * 0.82,
+    flex: 1,
+    borderTopLeftRadius: 20,
+    borderBottomLeftRadius: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: -4, height: 0 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 10,
+  },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingTop: 52,
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+  },
+  body: {
+    flex: 1,
+    paddingHorizontal: 20,
+    paddingTop: 16,
+  },
+  sectionLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 1,
+    marginBottom: 10,
+  },
+  itemRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+  },
+  itemName: {
+    fontSize: 15,
+    fontWeight: '600',
+    marginBottom: 2,
+  },
+  itemMeta: {
+    fontSize: 12,
+  },
+  itemPrice: {
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  subtotalRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 14,
+    marginTop: 4,
+    borderTopWidth: 1,
+  },
+  subtotalLabel: {
+    fontSize: 13,
+    fontWeight: '500',
+  },
+  subtotalValue: {
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  adjustmentRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 10,
+  },
+  adjustmentLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  adjustmentDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  adjustmentLabel: {
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  adjustmentValue: {
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  totalRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 16,
+    marginTop: 8,
+    borderTopWidth: 1.5,
+  },
+  totalLabel: {
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  totalValue: {
+    fontSize: 20,
+    fontWeight: '800',
   },
 });

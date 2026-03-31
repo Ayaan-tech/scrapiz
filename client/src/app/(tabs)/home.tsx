@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect , useRef} from 'react';
-import { View, Text,StyleSheet,ScrollView,TouchableOpacity,Dimensions,Image,Platform,ActivityIndicator,RefreshControl,} from 'react-native';
+import { View, Text,StyleSheet,ScrollView,TouchableOpacity,Dimensions,Image,Platform,ActivityIndicator,RefreshControl,Share,Linking,Alert,} from 'react-native';
 import { Image as ExpoImage } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
@@ -8,20 +8,9 @@ import Toast from 'react-native-toast-message';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import {
-  TrendingUp,
   ChevronRight,
-  PackagePlus,
-  AreaChart,
-  Package,
-  Gift,
-  Lightbulb,
-  Hammer,
-  Wrench,
-  Building,
-  Trash2,
-  Truck,
+  Share2,
   User,
-  FileText,
 } from 'lucide-react-native';
 //Components
 import CustomCarousel from '../../components/Carousel';
@@ -34,11 +23,8 @@ import RatingToast from '@/src/components/RatingToast';
 import NetworkRetryOverlay from '../../components/NetworkRetryOverlay';
 //Hooks
 import { useHomeDataWithRetry } from '../../hooks/useHomeDataWithRetry';
-import { useScrapCategories } from '../../hooks/useScrapCategories';
-import { useRecentActivity } from '../../hooks/useRecentActivity';
 import { useLocalization } from '../../context/LocalizationContext';
 import { useTheme } from '../../context/ThemeContext';
-import { useEnvironmentalImpact } from '../../hooks/useImpact';
 import { useAppRating } from '../../hooks/useAppRating';
 import { useOrderRatingToast } from '../../hooks/useOrderRatingToast';
 import { wp, hp, fs } from '../../utils/responsive';
@@ -59,44 +45,13 @@ function formatAMPM(date: Date) {
 }
 
 
-const serviceGradients = {
-  demolition: ['#16a34a', '#15803d'] as const,
-  dismantling: ['#16a34a', '#15803d'] as const,
-  'paper-shredding': ['#16a34a', '#15803d'] as const,
-  'society-tieup': ['#15803d', '#166534'] as const,
-  'junk-removal': ['#16a34a', '#15803d'] as const,
-} as const;
-
-// Add this helper component
-const ServiceIcon = ({ iconName, color }: { iconName: string, color: string }) => {
-  const iconProps = { size: 22, color: color };
-
-  switch (iconName) {
-    case 'Hammer':
-      return <Hammer {...iconProps} />;
-    case 'Wrench':
-      return <Wrench {...iconProps} />;
-    case 'FileText':
-      return <FileText {...iconProps} />;
-    case 'Building':
-      return <Building {...iconProps} />;
-    case 'Trash2':
-      return <Trash2 {...iconProps} />;
-    default:
-      return null;
-  }
-};
-
 export default function HomeScreen() {
   const router = useRouter();
   const { colors, isDark } = useTheme();
   const { 
     user, 
     products, 
-    categories, 
-    orders, 
     loading, 
-    error, 
     refetch,
     // Network retry state
     showRetryOverlay,
@@ -106,14 +61,10 @@ export default function HomeScreen() {
     errorMessage,
     retryNow,
   } = useHomeDataWithRetry();
-  const scrapCategories = useScrapCategories(products || [], categories || []);
-  const { treesSaved = 0, co2Reduced = 0 } = useEnvironmentalImpact(orders || []);
   const [refreshing, setRefreshing] = useState(false);
   const [imageError, setImageError] = useState(false);
   const insets = useSafeAreaInsets();
   const { t } = useLocalization();
-  const adScrollRef = useRef<ScrollView | null>(null);
-  const [adIndex, setAdIndex] = useState(0);
 
   // App Rating System Integration (Requirements: 1.3, 1.4, 7.1)
   const {
@@ -139,56 +90,56 @@ export default function HomeScreen() {
   const { setStepTarget, currentScreen } = useTutorialStore();
   const locationRef = useRef<View>(null);
   const searchRef = useRef<View>(null);
-  const quickActionsRef = useRef<View>(null);
   const ratesRef = useRef<View>(null);
-  const servicesRef = useRef<View>(null);
 
-const services = useMemo(() => [
-  { 
-    id: 'demolition', 
-    title: t('home.demolitionService'), 
-    description: t('home.demolitionDescription'), 
-    icon: 'Hammer', // <-- Change this to a string
-    color: '#16a34a',
-  },
-  { 
-    id: 'dismantling', 
-    title: t('home.dismantling'),
-    description: t('home.dismantlingDescription'), 
-    icon: 'Wrench', // <-- Change this to a string
-    color: '#16a34a',
-  },
-  { 
-    id: 'paper-shredding', 
-    title: t('home.paperShredding'),
-    description: t('home.paperShreddingDescription'), 
-    icon: 'FileText', // <-- Change this to a string
-    color: '#16a34a',
-  },
-  { 
-    id: 'society-tieup', 
-    title: t('home.societyTieup'),
-    description: t('home.societyTieupDescription'), 
-    icon: 'Building', // <-- Change this to a string
-    color: '#16a34a',
-  },
-  { 
-    id: 'junk-removal', 
-    title: t('home.junkRemoval'),
-    description: t('home.junkRemovalDescription'), 
-    icon: 'Trash2', // <-- Change this to a string
-    color: '#16a34a', // <-- Also fix the white color here
-  },
-], [t]);
+  const featuredMarketProducts = useMemo(() => {
+    const allProducts = products || [];
+    const findProduct = (terms: string[]) =>
+      allProducts.find((product) => {
+        const name = product.name.toLowerCase();
+        return terms.some((term) => name.includes(term));
+      });
 
-  const tips = useMemo(() => [
-    t('home.tip1'),
-    t('home.tip2'),
-    t('home.tip3'),
-    t('home.tip4'),
-    t('home.tip5'),
-  ], [t]);
-  const randomTip = tips[Math.floor(Math.random() * tips.length)];
+    const formatRate = (product?: typeof allProducts[number], fallbackUnit = 'kg') =>
+      product ? `₹${product.min_rate}-${product.max_rate}/${product.unit}` : `Check rates/${fallbackUnit}`;
+
+    return [
+      {
+        id: 'window-ac',
+        title: '1 ton Window AC',
+        image: findProduct(['window ac'])?.image_url
+          ? { uri: findProduct(['window ac'])?.image_url as string }
+          : require('../../../assets/images/Scrap_Rates_Photos/WindowAC.jpg'),
+        rate: formatRate(findProduct(['window ac']), 'piece'),
+      },
+      {
+        id: 'copper',
+        title: 'Copper',
+        image: findProduct(['copper'])?.image_url
+          ? { uri: findProduct(['copper'])?.image_url as string }
+          : require('../../../assets/images/Scrap_Rates_Photos/Copper.jpg'),
+        rate: formatRate(findProduct(['copper'])),
+      },
+      {
+        id: 'newspaper',
+        title: 'Newspaper',
+        image: findProduct(['newspaper'])?.image_url
+          ? { uri: findProduct(['newspaper'])?.image_url as string }
+          : require('../../../assets/images/Scrap_Rates_Photos/Newspaper.jpg'),
+        rate: formatRate(findProduct(['newspaper'])),
+      },
+      {
+        id: 'plastics',
+        title: 'Plastics',
+        image: findProduct(['plastic'])?.image_url
+          ? { uri: findProduct(['plastic'])?.image_url as string }
+          : require('../../../assets/images/Scrap_Rates_Photos/Plastics.jpg'),
+        rate: formatRate(findProduct(['plastic'])),
+      },
+    ];
+  }, [products]);
+
+  const referralShareMessage = `Join me on Scrapiz and sell scrap smarter.${user?.referral_code ? ` Use my referral code: ${user.referral_code}` : ''}\n\nPlay Store: https://play.google.com/store/apps/details?id=com.scrapiz.app\nApp Store: https://apps.apple.com/in/app/scrapiz-sell-scrap-online/id6756441850`;
 
   // Get user initials for fallback
   const getInitials = (name: string): string => {
@@ -309,24 +260,10 @@ const services = useMemo(() => [
           }
         });
 
-        // Measure quick actions
-        quickActionsRef.current?.measure((x, y, width, height, pageX, pageY) => {
-          if (width > 0 && height > 0) {
-            setStepTarget('home-quick-actions', { x: pageX, y: pageY, width, height });
-          }
-        });
-
         // Measure rates section
         ratesRef.current?.measure((x, y, width, height, pageX, pageY) => {
           if (width > 0 && height > 0) {
             setStepTarget('home-rates', { x: pageX, y: pageY, width, height });
-          }
-        });
-
-        // Measure services section
-        servicesRef.current?.measure((x, y, width, height, pageX, pageY) => {
-          if (width > 0 && height > 0) {
-            setStepTarget('home-services', { x: pageX, y: pageY, width, height });
           }
         });
       }, 100);
@@ -342,6 +279,33 @@ const services = useMemo(() => [
   const handleNavigate = (path: string) => {
     router.push(path as any);
   }
+
+  const handleShareApp = async () => {
+    try {
+      await Share.share({
+        message: referralShareMessage,
+        title: 'Scrapiz Referral',
+      });
+    } catch (error) {
+      Alert.alert('Share unavailable', referralShareMessage);
+    }
+  };
+
+  const handleContactSupport = async () => {
+    const gmailUrl = 'googlegmail://co?to=support@scrapiz.in';
+    const mailUrl = 'mailto:support@scrapiz.in';
+    const canOpenGmail = await Linking.canOpenURL(gmailUrl);
+    if (canOpenGmail) {
+      await Linking.openURL(gmailUrl);
+      return;
+    }
+    const canOpenMail = await Linking.canOpenURL(mailUrl);
+    if (canOpenMail) {
+      await Linking.openURL(mailUrl);
+      return;
+    }
+    Alert.alert('Contact Support', 'support@scrapiz.in');
+  };
 
   if (loading) {
     return (
@@ -487,284 +451,66 @@ const services = useMemo(() => [
           </View>
         </LinearGradient>
 
-        <CustomCarousel />
+        <View style={styles.homeBody}>
+          <CustomCarousel />
 
-        {/* Quick Actions */}
-        <View style={styles.section} ref={quickActionsRef}>
-          <View style={styles.sectionHeaderRow}>
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>{t('home.quickActions')}</Text>
-            <View style={[styles.sectionBadge, { backgroundColor: isDark ? 'rgba(34, 197, 94, 0.15)' : '#dcfce7' }]}>
-              <Text style={[styles.sectionBadgeText, { color: isDark ? '#4ade80' : '#15803d' }]}>{t('home.popular')}</Text>
+          <TouchableOpacity style={styles.heroBannerCard} onPress={() => handleNavigate('/(tabs)/sell')} activeOpacity={0.9}>
+            <Image source={require('../../../assets/images/home/home_second_banner.webp')} style={styles.heroBannerImage} resizeMode="cover" />
+          </TouchableOpacity>
+
+          <View style={styles.marketSection} ref={ratesRef}>
+            <View style={styles.marketHeader}>
+              <Text style={[styles.marketHeaderText, { color: colors.text }]}>Market Rates Today</Text>
+              <TouchableOpacity onPress={() => handleNavigate('/(tabs)/rates')}>
+                <ChevronRight size={22} color={colors.text} />
+              </TouchableOpacity>
             </View>
-          </View>
-          <View style={styles.actionsGrid}>
-            <TouchableOpacity
-              style={styles.actionCard}
-              onPress={() => handleNavigate('/(tabs)/sell')}
-              activeOpacity={0.8}
-            >
-              <LinearGradient
-                colors={isDark ? ['#15803d', '#14532d'] : ['#16a34a', '#15803d']}
-                style={styles.actionCardGradient}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-            >
-                <View style={styles.actionIcon}>
-                  <PackagePlus size={32} color="#ffffff" strokeWidth={2} />
-                </View>
-                <Text style={[styles.actionTitle, { color: 'white' }]}>{t('home.sellScrap')}</Text>
-                <Text style={[styles.actionSubtitle, { color: 'rgba(255,255,255,0.7)' }]}>{t('home.schedulePickup')}</Text>
-              </LinearGradient>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.actionCard}
-              onPress={() => handleNavigate('/(tabs)/rates')}
-              activeOpacity={0.8}
-            >
-              <LinearGradient          
-                  colors={isDark ? ['#15803d', '#14532d'] : ['#16a34a', '#15803d']}
-                  style={styles.actionCardGradient}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-             >
-                <View style={styles.actionIcon}>
-                  <AreaChart size={32} color="#ffffff" strokeWidth={2} />
-                </View>
-                <Text style={[styles.actionTitle, { color: 'white' }]}>{t('home.viewRates')}</Text>
-                <Text style={[styles.actionSubtitle, { color: 'rgba(255,255,255,0.7)' }]}>{t('home.todaysPrices')}</Text>
-              </LinearGradient>
-            </TouchableOpacity>
-          </View>
-        </View>
 
-        {/* Market Rates - Backend Data */}
-        <View style={styles.section} ref={ratesRef}>
-          <View style={styles.sectionHeader}>
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>{t('home.todaysMarketRates')}</Text>
-            <TouchableOpacity onPress={() => handleNavigate('/(tabs)/rates')}>
-             <TrendingUp size={fs(16)} color={colors.primary} strokeWidth={2.5} />
-            </TouchableOpacity>
-          </View>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.ratesScrollContent}
-            style={styles.ratesScrollView}
-          >
-            {scrapCategories.length > 0 ? (
-              scrapCategories.slice(0, 4).map((category, index) => (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.marketCardsRow}>
+              {featuredMarketProducts.map((item, index) => (
                 <TouchableOpacity
-                  key={category.id}
+                  key={item.id}
                   style={[
-                  styles.rateCard,
-                  { backgroundColor: colors.surface, borderColor: colors.border },
-                index === 3 && { marginRight:wp(5.3) }
-              ]}
+                    styles.marketProductCard,
+                    {
+                      backgroundColor: isDark ? '#1B2535' : '#FFFFFF',
+                      borderColor: isDark ? '#2F3B4E' : '#E2E8F0',
+                      marginRight: index === featuredMarketProducts.length - 1 ? 0 : 10,
+                    },
+                  ]}
+                  activeOpacity={0.85}
                   onPress={() => handleNavigate('/(tabs)/rates')}
                 >
-                  <View style={styles.rateIconContainer}>
-                    <RemoteImage 
-                      source={category.icon} 
-                      fallback={category.icon}
-                      style={styles.itemImage}
-                      showLoadingIndicator={false}
-                    />
+                  <View style={styles.marketProductImageWrap}>
+                    <Image source={item.image as any} style={styles.marketProductImage} resizeMode="contain" />
                   </View>
-                  <Text style={[styles.categoryName, { color: colors.text }]}
-                  numberOfLines={2}>{category.name}</Text>
-                  <View style={styles.priceBadge}>
-                    <Text style={[styles.categoryRate, { color: '#16a34a' }]}
-                    numberOfLines={1}
-                    adjustsFontSizeToFit={true}
-                    minimumFontScale={0.8}>
-                    {category.rate}
-                  </Text>
-                  </View>
-                </TouchableOpacity>
-              ))
-            ) : (
-              <View className='flex-1 items-center justify-center py-10'>
-                <Text className='text-sm text-gray-400'>{t('home.noRatesAvailable')}</Text>
-              </View>
-            )}
-          </ScrollView>
-        </View>
-
-        {/* Tip of the Day */}
-        <View style={styles.section}>
-          <LinearGradient
-          colors={isDark ? ['#065f46', '#047857'] : ['#ecfdf5', '#d1fae5']}
-          style={styles.tipCard}
-        >
-            <View style={styles.tipIconContainer}>
-               <Lightbulb size={fs(24)} color={isDark ? '#6ee7b7' : '#059669'} strokeWidth={2.5} />
-            </View>
-            <View style={styles.tipTextContainer}>
-              <Text style={[styles.tipTitle, { color: isDark ? '#f0fdf4' : '#064e3b' }]}>{t('home.tipOfTheDay')}</Text>
-              <Text style={[styles.tipText, { color: isDark ? '#d1fae5' : '#065f46' }]}>{randomTip}</Text>
-            </View>
-          </LinearGradient>
-        </View>
-
-        {/* Services */}
-        <View style={styles.section} ref={servicesRef}>
-          <View style={styles.sectionHeader}>
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>{t('home.services')}</Text>
-            <TouchableOpacity onPress={() => handleNavigate('/(tabs)/services')}>
-              <Text style={[styles.moreServicesText, { color: colors.primary }]}>{t('home.moreServices')}</Text>
-            </TouchableOpacity>
-          </View>
-          <View style={styles.servicesList}>
-            {services.map((service) => (
-              <LinearGradient
-                key={service.id}
-                // Updated: Passing the RGB color twice creates a solid background effect
-                colors={isDark 
-                  ? ['#064e3b', '#022c22'] 
-                  : ['rgb(241, 245, 249)', 'rgb(241, 245, 249)']
-                }
-                style={[
-                  styles.serviceCard, 
-                  { 
-                    borderWidth: 1, 
-                    // Note: If background and border are the same color, the border won't be visible
-                    borderColor: isDark ? 'rgba(34, 197, 94, 0.3)' : 'rgb(241, 245, 249)' 
-                  }
-                ]}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-              >
-                <TouchableOpacity
-                  style={styles.serviceCardTouchable}
-                  onPress={() => handleNavigate(`/services/${service.id}`)}
-                >
-                  <View style={[
-              styles.serviceIconContainer, 
-              { 
-                  backgroundColor: isDark ? 'rgba(34, 197, 94, 0.15)' : '#dcfce7' 
-              }
-          ]}>
-                    <ServiceIcon iconName={service.icon} color={isDark ? '#ffff' : '#16a34a'} />
-                  </View>
-                  <View className='flex-1'>
-                    <Text style={[
-                      styles.serviceTitle, 
-                      { color: isDark ? '#f0fdf4' : '#111827' } // Nearly white vs Dark Grey
-                  ]}>
-                      {service.title}
+                  <View style={styles.marketProductTextBlock}>
+                    <Text style={[styles.marketProductName, { color: colors.text }]} numberOfLines={2}>
+                      {item.title}
                     </Text>
-                    <Text 
-                numberOfLines={1} 
-                style={[
-                    styles.serviceDescription, 
-                    { color: isDark ? '#86efac' : '#64748b' } // Soft Green vs Grey
-                    ]}
-                >
-                  {service.description}
-            </Text>
+                    <Text style={styles.marketProductRate}>{item.rate}</Text>
                   </View>
-                  <ChevronRight 
-                    size={20} 
-                    color={isDark ? '#22c55e' : '#cbd5e1'} 
-                  />
                 </TouchableOpacity>
-              </LinearGradient>
-            ))}
+              ))}
+            </ScrollView>
           </View>
-        </View>
 
-        {/* Refer & Earn */}
-        <View style={styles.section}>
-          <TouchableOpacity 
-          style={styles.referCard} 
-          onPress={() => handleNavigate('/profile/refer-friends')}
-          activeOpacity={0.8}
-        >
-            <LinearGradient
-            colors={isDark ? ['#065f46', '#047857', '#059669'] : ['#d1fae5', '#a7f3d0', '#6ee7b7']}
-            style={styles.referCardGradient}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-          >
-               <View style={styles.referIconContainer}>
-                <Gift size={fs(28)} color={isDark ? '#6ee7b7' : '#059669'} strokeWidth={2.5} />
-              </View>
-              <View style={styles.referTextContainer}>
-                <Text style={[styles.referTitle, { color: isDark ? '#d1fae5' : '#064e3b' }]}>{t('home.referAndEarn')}</Text>
-                <Text style={[styles.referSubtitle, { color: isDark ? '#a7f3d0' : '#047857' }]}>
-                  {t('home.referSubtitle')}
-                </Text>
-              </View>
-               <ChevronRight size={fs(20)} color={isDark ? '#6ee7b7' : '#059669'} strokeWidth={2.5} />
-            </LinearGradient>
+          <TouchableOpacity style={styles.imagePromoCard} onPress={() => handleNavigate('/(tabs)/services')} activeOpacity={0.92}>
+            <Image source={require('../../../assets/images/home/demolition_site_converted.webp')} style={styles.imagePromo} resizeMode="cover" />
+            <View style={styles.imagePromoOverlay}>
+              <TouchableOpacity style={styles.imagePromoButton} onPress={() => handleNavigate('/(tabs)/services')} activeOpacity={0.9}>
+                <Text style={styles.imagePromoButtonText}>Schedule Now</Text>
+              </TouchableOpacity>
+            </View>
           </TouchableOpacity>
-        </View>
 
-        {/* Environmental Impact - Backend Data */}
-        {(treesSaved > 0 || co2Reduced > 0) && (
-          <View style={[styles.section, styles.impactSection]}>
-            <View style={styles.sectionHeaderRow}>
-               <Text style={[styles.sectionTitle, { color: colors.text }]}>{t('home.yourImpact')}</Text>
-            </View>
-            <LinearGradient
-              colors={['#10b981', '#059669', '#047857']}
-              style={styles.impactCard}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-        >
-               <View style={styles.impactIconContainer}>
-                <Text style={styles.impactEmoji}>🌱</Text>
-              </View>
-              <View style={styles.impactTextContainer}>
-                <Text style={styles.impactText}>
-                  You've helped save{' '}
-                 <Text style={styles.impactHighlight}>{treesSaved} trees</Text> and reduced{' '}
-                   <Text style={styles.impactHighlight}>{co2Reduced}kg CO₂</Text> emissions this year!
-                </Text>
-                <View style={styles.impactStats}>
-                  <View style={styles.statBadge}>
-                    <Text style={styles.statBadgeText}>🌳 +{treesSaved}</Text>
-                  </View>
-                  <View style={styles.statBadge}>
-                    <Text style={styles.statBadgeText}>♻️ {co2Reduced}kg</Text>
-                  </View>
-                </View>
-              </View>
-            </LinearGradient>
-          </View>
-        )}
+          <TouchableOpacity style={styles.imagePromoCard} onPress={handleShareApp} activeOpacity={0.92}>
+            <Image source={require('../../../assets/images/home/refer_and_Earn.webp')} style={styles.imagePromo} resizeMode="cover" />
+          </TouchableOpacity>
 
-        {/* Branding Section */}
-        <View style={styles.brandingSection}>
-          <LinearGradient
-            colors={['#0f172a', '#1e293b', '#334155']}
-            style={styles.brandingGradient}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-          >
-            {/* Decorative Elements */}
-            <View style={styles.brandingCircle1} />
-            <View style={styles.brandingCircle2} />
-            
-            <View style={styles.brandingContent}>
-            <View style={styles.brandingBadge}>
-              <Text style={styles.brandingBadgeText}>🇮🇳 INDIA'S #1</Text>
-            </View>
-            
-            <Text style={styles.brandingTagline}>Online Scrap</Text>
-            <Text style={styles.brandingTagline}>Selling Platform</Text>
-            
-            <View style={styles.brandingDivider} />
-            
-            <View style={styles.brandingLogoContainer}>
-              <Image source={require('../../../assets/images/LogowithoutS.png')}
-                style={styles.brandingLogoImage}
-                resizeMode="contain"
-                fadeDuration={0}
-              />
-            </View>
-          </View>
-          </LinearGradient>
+          <TouchableOpacity style={[styles.imagePromoCard, styles.contactPromoCard, styles.lastPromoCard]} onPress={handleContactSupport} activeOpacity={0.92}>
+            <Image source={require('../../../assets/images/home/contact_us.webp')} style={styles.contactPromoImage} resizeMode="cover" />
+          </TouchableOpacity>
         </View>
       </ScrollView>
       <Toast />
@@ -1003,6 +749,141 @@ const styles = StyleSheet.create({
   section: {
     paddingHorizontal: wp(5.3), // 20
     paddingVertical: hp(1.5), // 12
+  },
+  homeBody: {
+    paddingTop: hp(1.2),
+    paddingBottom: hp(3),
+  },
+  heroBannerCard: {
+    marginHorizontal: wp(4),
+    marginTop: hp(1.2),
+    borderRadius: 26,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.14,
+    shadowRadius: 12,
+    elevation: 6,
+  },
+  heroBannerImage: {
+    width: '100%',
+    height: hp(18),
+  },
+  marketSection: {
+    paddingTop: hp(1.8),
+    paddingBottom: hp(1.2),
+  },
+  marketHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: wp(5.3),
+    marginBottom: hp(1.6),
+  },
+  marketHeaderText: {
+    fontSize: fs(18),
+    fontWeight: '700',
+    letterSpacing: -0.3,
+  },
+  marketCardsRow: {
+    paddingHorizontal: wp(5.3),
+    paddingBottom: hp(0.8),
+  },
+  marketProductCard: {
+    width: wp(27),
+    minHeight: hp(12.5),
+    borderRadius: 14,
+    borderWidth: 1,
+    paddingHorizontal: 0,
+    paddingVertical: hp(0.8),
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  marketProductImageWrap: {
+    width: '100%',
+    height: hp(7.2),
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: hp(0.45),
+    overflow: 'hidden',
+    borderTopLeftRadius: 14,
+    borderTopRightRadius: 14,
+  },
+  marketProductImage: {
+    width: '100%',
+    height: '100%',
+  },
+  marketProductTextBlock: {
+    width: '100%',
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+    gap: hp(0.35),
+    paddingHorizontal: wp(1.8),
+  },
+  marketProductName: {
+    fontSize: fs(11.5),
+    fontWeight: '700',
+    textAlign: 'center',
+    lineHeight: fs(13.5),
+    minHeight: hp(2.9),
+  },
+  marketProductRate: {
+    fontSize: fs(10.8),
+    fontWeight: '700',
+    color: '#16a34a',
+    textAlign: 'center',
+    lineHeight: fs(12.8),
+  },
+  imagePromoCard: {
+    marginHorizontal: wp(4),
+    marginTop: hp(2),
+    borderRadius: 24,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.12,
+    shadowRadius: 12,
+    elevation: 6,
+  },
+  lastPromoCard: {
+    marginBottom: hp(1.5),
+  },
+  contactPromoCard: {
+    minHeight: hp(24),
+  },
+  imagePromo: {
+    width: '100%',
+    height: hp(18.5),
+  },
+  contactPromoImage: {
+    width: '100%',
+    height: hp(24),
+  },
+  imagePromoOverlay: {
+    position: 'absolute',
+    left: wp(4),
+    bottom: hp(2.2),
+  },
+  imagePromoButton: {
+    backgroundColor: '#1F9A42',
+    borderRadius: 999,
+    paddingHorizontal: wp(4.2),
+    paddingVertical: hp(0.9),
+    shadowColor: '#1F9A42',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.18,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  imagePromoButtonText: {
+    color: '#FFFFFF',
+    fontSize: fs(12),
+    fontWeight: '700',
   },
   sectionHeaderRow: {
     flexDirection: 'row',

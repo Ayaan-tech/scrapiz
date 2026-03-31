@@ -5,7 +5,7 @@ import {
   CategorySummary,
   OrderSummary 
 } from '../api/apiService';
-
+ 
 export interface RecentActivity {
   id: number;
   type: 'pickup_completed' | 'pickup_scheduled';

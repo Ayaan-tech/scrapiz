@@ -141,14 +141,20 @@ export default function LoginScreen() {
   useEffect(() => {
     if (authSuccess) {
       Toast.show({ type: 'success', text1: t('common.success'), text2: 'Signed in successfully!' });
-      navigateAfterAuth();
+      const dest = returnTo
+        ? `/(auth)/oauth-phone-details?returnTo=${encodeURIComponent(returnTo)}`
+        : '/(auth)/oauth-phone-details';
+      router.replace(dest as any);
     }
   }, [authSuccess]);
 
   useEffect(() => {
     if (appleAuthSuccess) {
       Toast.show({ type: 'success', text1: t('common.success'), text2: 'Signed in with Apple successfully!' });
-      navigateAfterAuth();
+      const dest = returnTo
+        ? `/(auth)/oauth-phone-details?returnTo=${encodeURIComponent(returnTo)}`
+        : '/(auth)/oauth-phone-details';
+      router.replace(dest as any);
     }
   }, [appleAuthSuccess]);
 

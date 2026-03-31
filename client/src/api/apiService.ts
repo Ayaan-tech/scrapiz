@@ -92,6 +92,7 @@ export interface UserProfile {
   referral_code?: string; // User's unique referral code to share
   referred_balance?: string; // Accumulated referral earnings
   has_completed_first_order?: boolean; // Whether user has completed their first order
+  has_used_referral_code?: boolean; // Whether user has applied a friend's referral code
   profile_image?: string; // URL to user's profile image
   avatar_provider?: string | null; // Avatar service provider (e.g., 'dicebear')
   avatar_style?: string | null; // DiceBear avatar style (e.g., 'avataaars', 'pixel-art')
@@ -183,8 +184,14 @@ apiClient.interceptors.response.use(
     console.error('API Error:', data || error.message);
 
     if (status === 401 || status === 403) {
-      // Clear token on auth errors using SecureStore
-      try { await SecureStorageService.removeAuthToken(); } catch { }
+      // Only clear the stored token if it matches the one used in the failed request.
+      // This prevents a stale 401 (from a previous session) from wiping a freshly
+      // stored token after a new OAuth login.
+      const failedToken = error.config?.headers?.Authorization;
+      const currentToken = await SecureStorageService.getAuthToken().catch(() => null);
+      if (failedToken && currentToken && failedToken === currentToken) {
+        try { await SecureStorageService.removeAuthToken(); } catch { }
+      }
 
       // Debounce to prevent multiple rapid triggers
       const now = Date.now();
@@ -414,12 +421,16 @@ export class AuthService {
    */
   static async phoneCompleteProfile(data: PhoneCompleteProfileRequest): Promise<PhoneCompleteProfileResponse> {
     try {
-      const response = await apiClient.post(API_CONFIG.ENDPOINTS.PHONE_COMPLETE_PROFILE, {
+      const payload: Record<string, string> = {
         name: data.name,
         email: data.email,
         phone_number: data.phone_number,
         firebase_uid: data.firebase_uid,
-      });
+      };
+      if (data.promo_code) {
+        payload.promo_code = data.promo_code;
+      }
+      const response = await apiClient.post(API_CONFIG.ENDPOINTS.PHONE_COMPLETE_PROFILE, payload);
 
       // Store JWT in SecureStore on success (new user created)
       if (response.data.jwt) {
@@ -544,6 +555,7 @@ export class AuthService {
     avatar_provider?: string | null;
     avatar_style?: string | null;
     avatar_seed?: string | null;
+    promo_code?: string;
   }): Promise<UserProfile> {
     try {
       const formData = new FormData();
@@ -600,6 +612,11 @@ export class AuthService {
       // Handle avatar_seed
       if (data.avatar_seed !== undefined) {
         formData.append('avatar_seed', data.avatar_seed === null ? '' : data.avatar_seed);
+      }
+
+      // Handle promo_code (referral code applied after OAuth registration)
+      if (data.promo_code) {
+        formData.append('promo_code', data.promo_code.toUpperCase());
       }
 
       const token = await SecureStorageService.getAuthToken();
@@ -780,7 +797,8 @@ export class AuthService {
     items: Array<{ product_id: number; quantity: number }>,
     address_id?: number,
     imageUris?: string[],
-    estimatedOrderValue?: number
+    estimatedOrderValue?: number,
+    referralAmount?: number
   ): Promise<any> {
     try {
       console.log('createOrder called with:');
@@ -802,6 +820,11 @@ export class AuthService {
       // Add estimated_order_value if provided
       if (estimatedOrderValue !== undefined) {
         formData.append('estimated_order_value', estimatedOrderValue.toString());
+      }
+
+      // Add referral_amount if provided
+      if (referralAmount !== undefined && referralAmount > 0) {
+        formData.append('referral_amount', referralAmount.toString());
       }
 
       // Add images if provided
@@ -895,6 +918,7 @@ export class AuthService {
         address: payload.address,
         preferred_datetime: payload.preferredDateTime,
         notes: payload.notes,
+        service_details: payload.service_details,
       });
 
       console.log('📡 API Response:', response.data);
