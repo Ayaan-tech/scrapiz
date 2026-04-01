@@ -180,6 +180,100 @@ const getFallbackImageForProduct = (productName: string) => {
 // Gate states for serviceability check
 type SellScreenState = 'checking' | 'location_gate' | 'not_serviceable' | 'serviceable';
 
+type ScrapCategoryKey = 'paper' | 'plastic' | 'metal' | 'electronic';
+
+const SCRAP_CATEGORY_CARDS: Array<{
+  key: ScrapCategoryKey;
+  label: string;
+  image: any;
+}> = [
+  {
+    key: 'paper',
+    label: 'Paper Scrap',
+    image: require('../../../assets/images/categories/paper_Scrap.png'),
+  },
+  {
+    key: 'plastic',
+    label: 'Plastic Scrap',
+    image: require('../../../assets/images/categories/plastic_Scrap.png'),
+  },
+  {
+    key: 'metal',
+    label: 'Metal Scrap',
+    image: require('../../../assets/images/categories/metal_Scrap.png'),
+  },
+  {
+    key: 'electronic',
+    label: 'Electronic Scrap',
+    image: require('../../../assets/images/categories/Electronic_scrap.png'),
+  },
+];
+
+const SCRAP_CATEGORY_DETAILS: Record<ScrapCategoryKey, {
+  title: string;
+  sectionTitle: string;
+  headImage: any;
+  contactImage: any;
+  lightBackground: string;
+  darkBackground: string;
+  accent: string;
+  accentDark: string;
+  sellBtn: string;
+}> = {
+  paper: {
+    title: 'Paper Scrap',
+    sectionTitle: 'Types of Paper Scrap',
+    headImage: require('../../../assets/images/sell/paper_head.png'),
+    contactImage: require('../../../assets/images/sell/paper_contactUS.png'),
+    lightBackground: '#E7CFAE',
+    darkBackground: '#E7CFAE',
+    accent: '#b7864e',
+    accentDark: '#d8ad7a',
+    sellBtn: '#b7864e',
+  },
+  plastic: {
+    title: 'Plastic Scrap',
+    sectionTitle: 'Types of Plastic Scrap',
+    headImage: require('../../../assets/images/sell/plastic_head.png'),
+    contactImage: require('../../../assets/images/sell/plastic_ContactUs.png'),
+    lightBackground: '#A7D2F2',
+    darkBackground: '#A7D2F2',
+    accent: '#6ea3c9',
+    accentDark: '#8dbde0',
+    sellBtn: '#6ea3c9',
+  },
+  metal: {
+    title: 'Metal Scrap',
+    sectionTitle: 'Types of Metal Scrap',
+    headImage: require('../../../assets/images/sell/meta_head.png'),
+    contactImage: require('../../../assets/images/sell/metal_ContactUs.png'),
+    lightBackground: '#E7716E',
+    darkBackground: '#E7716E',
+    accent: '#c07444',
+    accentDark: '#d5956b',
+    sellBtn: '#c07444',
+  },
+  electronic: {
+    title: 'Electronic Scrap',
+    sectionTitle: 'Types of Electronic Scrap',
+    headImage: require('../../../assets/images/sell/electronic_head.png'),
+    contactImage: require('../../../assets/images/sell/electronic_contactUs.png'),
+    lightBackground: '#F9E28D',
+    darkBackground: '#F9E28D',
+    accent: '#d5a24a',
+    accentDark: '#e1b15e',
+    sellBtn: '#d5a24a',
+  },
+};
+
+const matchesScrapCategory = (categoryName: string, categoryKey: ScrapCategoryKey): boolean => {
+  const normalized = categoryName.toLowerCase();
+  if (categoryKey === 'paper') return normalized.includes('paper') || normalized.includes('cardboard') || normalized.includes('book');
+  if (categoryKey === 'plastic') return normalized.includes('plastic');
+  if (categoryKey === 'metal') return normalized.includes('metal') || normalized.includes('iron') || normalized.includes('steel') || normalized.includes('brass') || normalized.includes('copper') || normalized.includes('aluminium') || normalized.includes('aluminum');
+  return normalized.includes('electronic') || normalized.includes('e-waste') || normalized.includes('ewaste') || normalized.includes('appliance');
+};
+
 export default function SellScreen() {
   const router = useRouter();
   const { colors, isDark } = useTheme();
@@ -307,6 +401,8 @@ function SellScreenContent() {
 
   const [products, setProducts] = useState<ProductSummary[]>([]);
   const [categories, setCategories] = useState<CategorySummary[]>([]);
+  const [showTypesLanding, setShowTypesLanding] = useState(true);
+  const [selectedLandingCategory, setSelectedLandingCategory] = useState<ScrapCategoryKey | null>(null);
   const [addresses, setAddresses] = useState<AddressSummary[]>([]);
   const [currentStep, setCurrentStep] = useState(1);
   const [selectedDate, setSelectedDate] = useState('');
@@ -369,6 +465,16 @@ function SellScreenContent() {
   const [showQuantityModal, setShowQuantityModal] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<ProductSummary | null>(null);
   const [tempQuantity, setTempQuantity] = useState('1');
+
+  const activeCategoryTheme = selectedLandingCategory
+    ? SCRAP_CATEGORY_DETAILS[selectedLandingCategory]
+    : null;
+  const modalAccent = activeCategoryTheme
+    ? (isDark ? activeCategoryTheme.accentDark : activeCategoryTheme.accent)
+    : colors.primary;
+  const modalSoftBg = activeCategoryTheme
+    ? (isDark ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.45)')
+    : (isDark ? 'rgba(34, 197, 94, 0.1)' : '#f0fdf4');
 
   // Referral wallet - use context
   const { walletBalance, setWalletBalance, updateBalanceAndCache, applyReferralDiscount } = useReferral();
@@ -1003,37 +1109,17 @@ function SellScreenContent() {
         });
       }
 
-      // Show success message
-      const message = orderReferralBonus > 0
-        ? `Your scrap pickup has been scheduled successfully!\n\n📋 Order: ${orderNumber}\n💰 Estimated Value: ₹${Math.round(orderEstimatedValue)}\n🎁 Rewards Bonus: +₹${Math.round(orderReferralBonus)}\n💸 Total Payout: ₹${Math.round(orderTotalPayout)}\n📅 Pickup: ${selectedDate} at ${selectedTime}\n\nRewards credits will be applied when the order is completed.`
-        : `Your scrap pickup has been scheduled successfully!\n\n📋 Order: ${orderNumber}\n💰 Total Amount: ₹${Math.round(orderEstimatedValue)}\n📅 Pickup: ${selectedDate} at ${selectedTime}\n\nOur team will arrive at your doorstep at the scheduled time.`;
-
       // Store order ID for feedback
       setLastOrderId(orderId);
 
-      Alert.alert(
-        '✅ Booking Confirmed!',
-        message,
-        [
-          {
-            text: '📦 View Order',
-            onPress: () => {
-              resetForm();
-              router.push(`/profile/orders/${orderId}` as any);
-            }
-          },
-          {
-            text: '✨ Schedule Another',
-            onPress: () => {
-              resetForm();
-              // Show feedback modal after a short delay
-              setTimeout(() => {
-                setShowFeedbackModal(true);
-              }, 500);
-            }
-          }
-        ]
-      );
+      Toast.show({
+        type: 'success',
+        text1: 'Booking confirmed',
+        text2: `Order ${orderNumber} is live. We are finding your nearest vendor now.`,
+      });
+
+      resetForm();
+      router.replace(`/tracking/${orderId}/search` as any);
     } catch (error: any) {
       Alert.alert('Error', error.message || 'Failed to submit order');
     } finally {
@@ -1108,7 +1194,13 @@ function SellScreenContent() {
           nestedScrollEnabled={true}
           contentContainerStyle={{ paddingBottom: 16 }}
         >
-          {Object.entries(groupedProducts).map(([categoryId, categoryProducts], index) => (
+          {Object.entries(groupedProducts)
+            .filter(([categoryId]) => {
+              if (!selectedLandingCategory) return true;
+              const categoryName = getCategoryName(Number(categoryId));
+              return matchesScrapCategory(categoryName, selectedLandingCategory);
+            })
+            .map(([categoryId, categoryProducts], index) => (
             <View
               key={categoryId}
               ref={index === 0 ? itemSelectionRef : null}
@@ -1172,7 +1264,7 @@ function SellScreenContent() {
                             onPress={() => openQuantityModal(product)}
                           >
                             <Text style={[styles.quantityBadgeText, { color: colors.primary }]}>
-                              {selectedItem.quantity}{product.unit}
+                              Selected: {selectedItem.quantity} {product.unit}
                             </Text>
                           </TouchableOpacity>
                           <TouchableOpacity
@@ -1423,6 +1515,130 @@ function SellScreenContent() {
         {errors.schedule && (
           <Text style={styles.errorTextCentered}>{errors.schedule}</Text>
         )}
+      </View>
+    );
+  };
+
+  const getProductsForLandingCategory = (categoryKey: ScrapCategoryKey): ProductSummary[] => {
+    return products.filter((product) => {
+      const categoryName = getCategoryName(product.category);
+      return matchesScrapCategory(categoryName, categoryKey);
+    });
+  };
+
+  const renderTypesLanding = () => (
+    <View style={[styles.typesRoot, { backgroundColor: colors.background }]}> 
+      <LinearGradient
+        colors={isDark ? ['#0b7a31', '#2e8f4d', 'transparent'] : ['#0d7f34', '#5aa96e', 'transparent']}
+        start={{ x: 0.5, y: 0 }}
+        end={{ x: 0.5, y: 1 }}
+        style={styles.typesHeader}
+      >
+        <TouchableOpacity style={styles.typesBackButton} onPress={() => router.back()}>
+          <ArrowLeft size={30} color="#f3f4f6" />
+        </TouchableOpacity>
+        <Text style={styles.typesHeaderTitle}>Types of Scraps</Text>
+      </LinearGradient>
+
+      <View style={styles.typesGrid}>
+        {SCRAP_CATEGORY_CARDS.map((card) => (
+          <TouchableOpacity
+            key={card.key}
+            style={styles.typesCardWrap}
+            activeOpacity={0.86}
+            onPress={() => {
+              setSelectedLandingCategory(card.key);
+              setShowTypesLanding(false);
+            }}
+          >
+            <View style={[styles.typesCard, { backgroundColor: isDark ? '#1f2937' : '#ffffff', borderColor: isDark ? '#374151' : '#e5e7eb' }]}>
+              <Image source={card.image} style={styles.typesCardImage} resizeMode="contain" />
+            </View>
+            <Text style={[styles.typesCardLabel, { color: colors.text }]}>{card.label}</Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+    </View>
+  );
+
+  const renderCategoryShowcase = (categoryKey: ScrapCategoryKey) => {
+    const detail = SCRAP_CATEGORY_DETAILS[categoryKey];
+    const categoryProducts = getProductsForLandingCategory(categoryKey);
+
+    return (
+      <View
+        style={[
+          styles.categoryShowcaseRoot,
+          { backgroundColor: detail.lightBackground },
+        ]}
+      >
+        <View style={styles.categoryShowcaseHeaderRow}>
+          <TouchableOpacity
+            style={styles.categoryShowcaseBackButton}
+            onPress={() => {
+              setShowTypesLanding(true);
+              setSelectedLandingCategory(null);
+            }}
+          >
+            <ArrowLeft size={24} color={isDark ? '#f3f4f6' : '#111827'} />
+          </TouchableOpacity>
+          <Text style={[styles.categoryShowcaseTitle, { color: isDark ? '#f9fafb' : '#111827' }]}>{detail.title}</Text>
+        </View>
+
+        <View style={styles.categoryShowcaseScrollContent}>
+          <Image source={detail.headImage} style={styles.categoryShowcaseHeadImage} resizeMode="contain" />
+
+          <View style={styles.categoryShowcaseListWrap}>
+            <Text style={[styles.categoryShowcaseListTitle, { color: isDark ? '#f3f4f6' : '#111827' }]}>
+              {detail.sectionTitle}
+            </Text>
+
+            {categoryProducts.map((product) => {
+              const productImage = getImageForProduct(product);
+              const fallbackImage = getFallbackImageForProduct(product.name);
+              const selectedItem = selectedItems.find(item => item.id === product.id);
+              return (
+                <View key={product.id} style={[styles.categoryShowcaseItemRow, { backgroundColor: isDark ? '#1f2937' : '#ffffff' }]}>
+                  <View style={styles.categoryShowcaseItemLeft}>
+                    {productImage ? (
+                      <RemoteImage source={productImage} fallback={fallbackImage} style={styles.categoryShowcaseItemImage} showLoadingIndicator={false} />
+                    ) : (
+                      <Image source={fallbackImage} style={styles.categoryShowcaseItemImage} resizeMode="cover" />
+                    )}
+                    <View style={styles.categoryShowcaseItemTextWrap}>
+                      <Text style={[styles.categoryShowcaseItemName, { color: isDark ? '#f9fafb' : '#111827' }]} numberOfLines={1}>
+                        {product.name}
+                      </Text>
+                      <Text style={[styles.categoryShowcaseItemDesc, { color: isDark ? '#d1d5db' : '#6b7280' }]} numberOfLines={2}>
+                        {product.description || `${product.name} scrap`}
+                      </Text>
+                    </View>
+                  </View>
+
+                  <View style={styles.categoryShowcaseItemRight}>
+                    <Text style={[styles.categoryShowcaseRate, { color: isDark ? '#f3f4f6' : '#2f2f2f' }]}>
+                      Rs {product.min_rate} - {product.max_rate}/{product.unit}
+                    </Text>
+                    {selectedItem && (
+                      <Text style={[styles.categoryShowcaseSelectedQty, { color: detail.sellBtn }]}>
+                        Selected: {selectedItem.quantity} {product.unit}
+                      </Text>
+                    )}
+                    <TouchableOpacity
+                      style={[styles.categoryShowcaseSellBtn, { backgroundColor: detail.sellBtn }]}
+                      onPress={() => openQuantityModal(product)}
+                    >
+                      <Text style={styles.categoryShowcaseSellBtnText}>Sell</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              );
+            })}
+
+            <Text style={[styles.categoryShowcaseRateHint, { color: isDark ? '#d1d5db' : '#5b5b5b' }]}>Rates last updated: 10 February 2026</Text>
+            <Image source={detail.contactImage} style={styles.categoryShowcaseContactImage} resizeMode="cover" />
+          </View>
+        </View>
       </View>
     );
   };
@@ -2154,20 +2370,34 @@ function SellScreenContent() {
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <StatusBar barStyle={isDark ? "light-content" : "dark-content"} />
-      <View style={[styles.header, { backgroundColor: colors.surface }]}>
-        <Text style={[styles.headerTitle, { color: colors.text }]}>Sell Scrap</Text>
-        <Text style={[styles.stepTitle, { color: colors.textSecondary }]}>{stepTitles[currentStep - 1]}</Text>
-        {renderStepIndicator()}
-      </View>
+      {!(currentStep === 1 && (showTypesLanding || selectedLandingCategory)) && (
+        <View style={[styles.header, { backgroundColor: colors.surface }]}>
+          <Text style={[styles.headerTitle, { color: colors.text }]}>Sell Scrap</Text>
+          <Text style={[styles.stepTitle, { color: colors.textSecondary }]}>{stepTitles[currentStep - 1]}</Text>
+          {renderStepIndicator()}
+        </View>
+      )}
 
       <ScrollView
-        style={styles.content}
+        style={[
+          styles.content,
+          currentStep === 1 && !showTypesLanding && selectedLandingCategory
+            ? { backgroundColor: SCRAP_CATEGORY_DETAILS[selectedLandingCategory].lightBackground }
+            : null,
+        ]}
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.scrollViewContent}
+        contentContainerStyle={[
+          styles.scrollViewContent,
+          currentStep === 1 && !showTypesLanding && selectedLandingCategory
+            ? { backgroundColor: SCRAP_CATEGORY_DETAILS[selectedLandingCategory].lightBackground }
+            : null,
+        ]}
         keyboardShouldPersistTaps="handled"
         nestedScrollEnabled={true}
       >
-        {currentStep === 1 && renderStep1()}
+        {currentStep === 1 && showTypesLanding && renderTypesLanding()}
+        {currentStep === 1 && !showTypesLanding && selectedLandingCategory && renderCategoryShowcase(selectedLandingCategory)}
+        {currentStep === 1 && !showTypesLanding && !selectedLandingCategory && renderStep1()}
         {currentStep === 2 && renderStep2()}
         {currentStep === 3 && renderStep3()}
         {currentStep === 4 && renderStep4()}
@@ -2315,7 +2545,7 @@ function SellScreenContent() {
                 {/* Header */}
                 <View style={[styles.quantityModalHeader, { borderBottomColor: colors.border }]}>
                   <View style={styles.quantityModalTitleContainer}>
-                    <Scale size={20} color={colors.primary} />
+                    <Scale size={20} color={modalAccent} />
                     <Text style={[styles.quantityModalTitle, { color: colors.text }]}>
                       Select Quantity
                     </Text>
@@ -2341,7 +2571,7 @@ function SellScreenContent() {
                         <Text style={[styles.quantityModalProductName, { color: colors.text }]}>
                           {selectedProduct.name}
                         </Text>
-                        <Text style={[styles.quantityModalProductRate, { color: colors.primary }]}>
+                        <Text style={[styles.quantityModalProductRate, { color: modalAccent }]}>
                           ₹{selectedProduct.min_rate}-{selectedProduct.max_rate}/{selectedProduct.unit}
                         </Text>
                       </View>
@@ -2391,14 +2621,14 @@ function SellScreenContent() {
                           style={[
                             styles.quantityModalQuickButton,
                             { backgroundColor: colors.card, borderColor: colors.border },
-                            tempQuantity === value.toString() && { backgroundColor: isDark ? 'rgba(34, 197, 94, 0.15)' : '#f0fdf4', borderColor: colors.primary }
+                            tempQuantity === value.toString() && { backgroundColor: modalSoftBg, borderColor: modalAccent }
                           ]}
                           onPress={() => setTempQuantity(value.toString())}
                         >
                           <Text style={[
                             styles.quantityModalQuickButtonText,
                             { color: colors.textSecondary },
-                            tempQuantity === value.toString() && { color: colors.primary, fontWeight: '600' }
+                            tempQuantity === value.toString() && { color: modalAccent, fontWeight: '600' }
                           ]}>
                             {value}
                           </Text>
@@ -2409,11 +2639,11 @@ function SellScreenContent() {
 
                   {/* Estimated Value */}
                   {selectedProduct && (
-                    <View style={[styles.quantityModalEstimate, { backgroundColor: isDark ? 'rgba(34, 197, 94, 0.1)' : '#f0fdf4', borderColor: isDark ? colors.primary : '#dcfce7' }]}>
+                    <View style={[styles.quantityModalEstimate, { backgroundColor: modalSoftBg, borderColor: modalAccent }]}>
                       <Text style={[styles.quantityModalEstimateLabel, { color: colors.textSecondary }]}>
                         Estimated Value:
                       </Text>
-                      <Text style={[styles.quantityModalEstimateValue, { color: colors.primary }]}>
+                      <Text style={[styles.quantityModalEstimateValue, { color: modalAccent }]}>
                         ₹{Math.round(selectedProduct.min_rate * (parseFloat(tempQuantity) || 0))}
                       </Text>
                     </View>
@@ -2437,7 +2667,7 @@ function SellScreenContent() {
                     activeOpacity={0.8}
                   >
                     <LinearGradient
-                      colors={isDark ? ['#22c55e', '#16a34a'] : ['#16a34a', '#15803d']}
+                      colors={[modalAccent, modalAccent]}
                       style={styles.quantityModalConfirmGradient}
                     >
                       <Text style={styles.quantityModalConfirmText}>
@@ -2602,6 +2832,183 @@ const styles = StyleSheet.create({
   },
   categoryItems: {
     gap: 8,
+  },
+  typesRoot: {
+    flex: 1,
+  },
+  typesHeader: {
+    height: 170,
+    paddingTop: 58,
+    paddingHorizontal: 20,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    position: 'relative',
+  },
+  typesBackButton: {
+    marginTop: 4,
+    width: 36,
+    position: 'absolute',
+    left: 20,
+    top: 62,
+    alignItems: 'center',
+    zIndex: 2,
+  },
+  typesHeaderTitle: {
+    color: '#f3f4f6',
+    fontSize: 48,
+    fontWeight: '800',
+    letterSpacing: -0.8,
+    width: '100%',
+    textAlign: 'center',
+  },
+  typesGrid: {
+    marginTop: 18,
+    paddingHorizontal: 24,
+    paddingTop: 8,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+  },
+  typesCardWrap: {
+    width: (width - 62) / 2,
+    marginBottom: 18,
+    alignItems: 'center',
+  },
+  typesCard: {
+    width: '100%',
+    aspectRatio: 1,
+    borderRadius: 24,
+    overflow: 'hidden',
+    borderWidth: 1,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 5 },
+    shadowOpacity: 0.14,
+    shadowRadius: 9,
+    elevation: 5,
+  },
+  typesCardImage: {
+    width: '88%',
+    height: '88%',
+    alignSelf: 'center',
+    marginTop: '6%',
+  },
+  typesCardLabel: {
+    marginTop: 8,
+    fontSize: 18,
+    fontWeight: '500',
+    textAlign: 'center',
+  },
+  categoryShowcaseRoot: {
+    flex: 1,
+  },
+  categoryShowcaseHeaderRow: {
+    marginTop: 48,
+    marginBottom: 12,
+    paddingHorizontal: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+  },
+  categoryShowcaseBackButton: {
+    width: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'absolute',
+    left: 14,
+    top: 4,
+  },
+  categoryShowcaseTitle: {
+    fontSize: 34,
+    fontWeight: '800',
+    textAlign: 'center',
+  },
+  categoryShowcaseScrollContent: {
+    paddingBottom: 24,
+  },
+  categoryShowcaseHeadImage: {
+    width: width - 24,
+    height: 208,
+    alignSelf: 'center',
+    marginTop: 8,
+    marginBottom: 8,
+  },
+  categoryShowcaseListWrap: {
+    paddingHorizontal: 12,
+  },
+  categoryShowcaseListTitle: {
+    fontSize: 30,
+    fontWeight: '700',
+    marginBottom: 10,
+  },
+  categoryShowcaseItemRow: {
+    borderRadius: 10,
+    padding: 8,
+    marginBottom: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  categoryShowcaseItemLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    marginRight: 8,
+  },
+  categoryShowcaseItemImage: {
+    width: 44,
+    height: 44,
+    borderRadius: 8,
+    marginRight: 8,
+  },
+  categoryShowcaseItemTextWrap: {
+    flex: 1,
+  },
+  categoryShowcaseItemName: {
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  categoryShowcaseItemDesc: {
+    fontSize: 10,
+    marginTop: 2,
+  },
+  categoryShowcaseItemRight: {
+    alignItems: 'flex-end',
+    justifyContent: 'center',
+  },
+  categoryShowcaseRate: {
+    fontSize: 13,
+    marginBottom: 4,
+  },
+  categoryShowcaseSelectedQty: {
+    fontSize: 11,
+    fontWeight: '700',
+    marginBottom: 4,
+  },
+  categoryShowcaseSellBtn: {
+    backgroundColor: '#b99762',
+    paddingHorizontal: 14,
+    height: 24,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  categoryShowcaseSellBtnText: {
+    color: '#ffffff',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  categoryShowcaseRateHint: {
+    fontSize: 10,
+    textAlign: 'center',
+    marginTop: 8,
+    marginBottom: 10,
+  },
+  categoryShowcaseContactImage: {
+    width: width - 24,
+    height: 152,
+    borderRadius: 14,
+    alignSelf: 'center',
   },
   itemCard: {
     backgroundColor: 'white',

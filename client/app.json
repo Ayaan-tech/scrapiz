@@ -43,6 +43,11 @@
         "foregroundImage": "./assets/images/foreground5.png",
         "backgroundColor": "#16a34a"
       },
+      "config": {
+        "googleMaps": {
+          "apiKey": "AIzaSyCXv6HR4agCc7eHo02CjVgN4yMVxbvQRqg"
+        }
+      },
       "splash": {
         "image": "./assets/images/newapp.png",
         "resizeMode": "contain",

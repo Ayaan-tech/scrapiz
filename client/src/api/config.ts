@@ -45,6 +45,11 @@ export const API_CONFIG = {
     INVENTORY_ORDERNOS: '/inventory/ordernos/',
     INVENTORY_CREATE_ORDER: '/inventory/create-order/',
     INVENTORY_CANCEL_ORDER: '/inventory/cancel-order/',
+    ORDER_TRACKING: (orderId: number | string) => `/order/${orderId}/tracking/`,
+    ORDER_NEARBY_AGENTS: (orderId: number | string) => `/order/${orderId}/agents/`,
+    VENDOR_NEARBY: '/vendor/nearby/',
+    BOOKING_ACTIVE: (bookingId: string) => `/booking/${bookingId}/active/`,
+    VENDOR_RATE: (vendorId: number | string) => `/vendor/${vendorId}/rate/`,
     
     // Feedback
     FEEDBACK_QUESTIONS: '/feedback/questions/',

@@ -2,6 +2,7 @@ import axios from 'axios';
 import { API_CONFIG, ApiResponse, RegisterRequest, LoginRequest, VerifyOtpRequest, PasswordResetRequest, NotificationSettings, ServiceBookingPayload, ServiceBooking, PushNotificationPreferences, AppleUserInfo, PlatformInfo, AppleLoginResponse, PhoneVerifyRequest, PhoneVerifyResponse, PhoneCompleteProfileRequest, PhoneCompleteProfileResponse, PhoneConfirmLinkRequest, PhoneConfirmLinkResponse } from './config';
 import { ReferredUser, ReferralTransaction } from '../types/referral';
 import { DeletionFeedback } from '../types/account';
+import { OrderTrackingResponse, TrackingNearbyAgent, TrackingVendorPin } from '../types/orderTracking';
 import { SecureStorageService } from '../services/secureStorage';
 
 export type { NotificationSettings, ServiceBookingPayload, ServiceBooking, PushNotificationPreferences } from './config';
@@ -874,6 +875,73 @@ export class AuthService {
       return response.data;
     } catch (error: any) {
       throw new Error(error.response?.data?.error || 'Failed to cancel order');
+    }
+  }
+
+  static async getOrderTracking(orderId: number): Promise<OrderTrackingResponse> {
+    try {
+      const response = await apiClient.get(API_CONFIG.ENDPOINTS.ORDER_TRACKING(orderId));
+      return (response.data?.data ?? response.data) as OrderTrackingResponse;
+    } catch (error: any) {
+      throw new Error(error.response?.data?.error || 'Failed to fetch live tracking');
+    }
+  }
+
+  static async getNearbyVendors(orderId: number): Promise<TrackingVendorPin[]> {
+    try {
+      const response = await apiClient.get(API_CONFIG.ENDPOINTS.VENDOR_NEARBY, {
+        params: { order_id: orderId },
+      });
+      const payload = response.data?.data ?? response.data;
+      if (Array.isArray(payload)) {
+        return payload as TrackingVendorPin[];
+      }
+      if (Array.isArray(payload?.vendor_pins)) {
+        return payload.vendor_pins as TrackingVendorPin[];
+      }
+      if (Array.isArray(payload?.results)) {
+        return payload.results as TrackingVendorPin[];
+      }
+      return [];
+    } catch (error: any) {
+      throw new Error(error.response?.data?.error || 'Failed to fetch nearby vendors');
+    }
+  }
+
+  static async getNearbyAgents(orderId: number): Promise<TrackingNearbyAgent[]> {
+    try {
+      const response = await apiClient.get(API_CONFIG.ENDPOINTS.ORDER_NEARBY_AGENTS(orderId));
+      const payload = response.data?.data ?? response.data;
+      if (Array.isArray(payload)) {
+        return payload as TrackingNearbyAgent[];
+      }
+      if (Array.isArray(payload?.agents)) {
+        return payload.agents as TrackingNearbyAgent[];
+      }
+      if (Array.isArray(payload?.results)) {
+        return payload.results as TrackingNearbyAgent[];
+      }
+      return [];
+    } catch (error: any) {
+      throw new Error(error.response?.data?.error || 'Failed to fetch nearby agents');
+    }
+  }
+
+  static async getBookingActive(bookingId: string): Promise<any> {
+    try {
+      const response = await apiClient.get(API_CONFIG.ENDPOINTS.BOOKING_ACTIVE(bookingId));
+      return response.data?.data ?? response.data;
+    } catch (error: any) {
+      throw new Error(error.response?.data?.error || 'Failed to fetch active booking');
+    }
+  }
+
+  static async rateVendor(vendorId: number, rating: number): Promise<ApiResponse> {
+    try {
+      const response = await apiClient.post(API_CONFIG.ENDPOINTS.VENDOR_RATE(vendorId), { rating });
+      return (response.data?.data ?? response.data) as ApiResponse;
+    } catch (error: any) {
+      throw new Error(error.response?.data?.error || 'Failed to submit vendor rating');
     }
   }
 

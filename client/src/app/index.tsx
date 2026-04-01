@@ -42,6 +42,7 @@ export default function IndexScreen() {
   const handleSplashFinish = () => {
     setShowSplash(false);
   };
+
   useEffect(() => {
     // Wait for splash screen, auth check, and language initialization to complete
     if (showSplash || !isAuthCheckDone || isLanguageLoading) return;
@@ -60,11 +61,6 @@ export default function IndexScreen() {
       hasNavigatedRef.current = true;
       return;
     }
-
-    console.log('🚀 Navigation Debug:', {
-      isLanguageSet,
-      isAuthenticated: isAuthenticated,
-    });
 
     let routeToNavigate = ""
 
@@ -97,6 +93,11 @@ export default function IndexScreen() {
       // Note: Auth state is still tracked for conditional UI rendering,
       // but no longer blocks app entry
     }
+
+    console.log('🚀 Navigation Debug:', {
+      isLanguageSet,
+      isAuthenticated,
+    });
 
     if (routeToNavigate) {
       hasNavigatedRef.current = true;

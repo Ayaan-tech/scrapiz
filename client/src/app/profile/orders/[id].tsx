@@ -22,6 +22,12 @@ import { OrderProgressTimeline } from '../../../components/OrderProgressTimeline
 import InlineStarRating from '../../../components/InlineStarRating';
 import OrderRatingFeedbackModal from '../../../components/OrderRatingFeedbackModal';
 
+function canTrackVendor(statusName: string) {
+  return ['pending', 'scheduled', 'transit', 'en_route', 'arrived', 'in_progress', 'ready'].includes(
+    (statusName || '').toLowerCase()
+  );
+}
+
 export default function OrderDetails() {
   const router = useRouter();
   const { id } = useLocalSearchParams();
@@ -202,6 +208,12 @@ export default function OrderDetails() {
     return cancellableStatuses.includes(statusName) || statusName === '';
   }, [order]);
 
+  const canTrackVendorForOrder = useMemo(() => {
+    if (!order) return false;
+    const statusName = (typeof order.status === 'string' ? order.status : order.status?.name || '').toLowerCase();
+    return canTrackVendor(statusName);
+  }, [order]);
+
   /**
    * Check if order is completed and eligible for rating
    * Per requirement 4.1: Display inline star rating for completed unrated orders
@@ -347,6 +359,15 @@ export default function OrderDetails() {
             orderDate={order.created_at}
             completedDate={statusName === 'completed' ? order.updated_at : undefined}
           />
+          {canTrackVendorForOrder && (
+            <TouchableOpacity
+              style={[styles.trackVendorButton, { backgroundColor: colors.primary }]}
+              onPress={() => router.push(`/tracking/${order.id}/search` as any)}
+            >
+              <Truck size={18} color="#fff" />
+              <Text style={styles.trackVendorButtonText}>Would like to track your vendor?</Text>
+            </TouchableOpacity>
+          )}
         </View>
 
         {/* Rating Section - Per requirements 4.1, 4.3, 4.4 */}
@@ -771,6 +792,23 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontFamily: 'Inter-Regular',
     fontStyle: 'italic',
+  },
+  trackVendorButton: {
+    marginTop: 16,
+    borderRadius: 12,
+    minHeight: 52,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  trackVendorButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    fontFamily: 'Inter-SemiBold',
+    color: '#fff',
   },
   cancelButton: {
     flexDirection: 'row',

@@ -34,6 +34,12 @@ import { useTheme } from '../../../context/ThemeContext';
 import { AuthService } from '../../../api/apiService';
 import { RemoteImage } from '../../../components/RemoteImage';
 
+function canTrackVendor(statusName: string) {
+  return ['pending', 'scheduled', 'transit', 'en_route', 'arrived', 'in_progress', 'ready'].includes(
+    (statusName || '').toLowerCase()
+  );
+}
+
 interface HeaderComponentProps {
   onBackPress: () => void;
   orderCount: number;
@@ -319,6 +325,16 @@ export default function OrdersScreen() {
                     </View>
                   </View>
                   <View style={styles.cardFooterActions}>
+                    {canTrackVendor(statusName) && (
+                      <TouchableOpacity
+                        style={[styles.trackVendorButton, { backgroundColor: colors.primary }]}
+                        onPress={() => router.push(`/tracking/${order.id}/search` as any)}
+                        activeOpacity={0.8}
+                      >
+                        <Truck size={14} color="#fff" />
+                        <Text style={styles.trackVendorButtonText}>Track Vendor</Text>
+                      </TouchableOpacity>
+                    )}
                     {isCancellable && (
                       <TouchableOpacity
                         style={[styles.cancelOrderBtn, cancellingOrderIds.has(order.id) && { opacity: 0.5 }]}
@@ -553,7 +569,22 @@ const styles = StyleSheet.create({
   cardFooterActions: {
     flexDirection: 'row',
     alignItems: 'center',
+    flexWrap: 'wrap',
     gap: 8,
+  },
+  trackVendorButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    gap: 4,
+  },
+  trackVendorButtonText: {
+    fontSize: 12,
+    fontWeight: '600',
+    fontFamily: 'Inter-SemiBold',
+    color: '#fff',
   },
   cancelOrderBtn: {
     flexDirection: 'row',
